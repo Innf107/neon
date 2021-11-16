@@ -1,0 +1,121 @@
+name:                calcite
+version:             0.1.0.0
+github:              "Innf107/calcite"
+license:             BSD3
+author:              "Finn Schneider"
+maintainer:          "finn@famschneider.info"
+copyright:           "2021 Finn Schneider"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/Innf107/calcite#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- relude
+- containers
+- text
+- text-builder
+- parsec
+- polysemy
+- polysemy-plugin
+
+library:
+  source-dirs: src
+
+ghc-options:
+- -fplugin=Polysemy.Plugin
+- -Wall
+- -Wcompat
+- -Wincomplete-uni-patterns
+- -Wno-unused-imports
+- -Wno-unticked-promoted-constructors
+- -Wredundant-constraints
+- -Werror=incomplete-patterns
+- -Werror=incomplete-record-updates
+- -Werror=missing-fields
+- -freverse-errors
+
+executables:
+  calcite-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - calcite
+
+tests:
+  calcite-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - calcite
+
+default-extensions:
+  - NoImplicitPrelude
+  - StrictData
+  - ApplicativeDo
+  - LambdaCase
+  - OverloadedStrings
+  - DataKinds
+  - TypeFamilies
+  - TypeFamilyDependencies
+  - FlexibleInstances
+  - FlexibleContexts
+  - RankNTypes
+  - MultiParamTypeClasses
+  - PatternSynonyms
+  - StandaloneDeriving
+  - StandaloneKindSignatures
+  - GADTs
+  - ConstraintKinds
+  - ScopedTypeVariables
+  - BlockArguments
+  - TypeOperators
+  - NamedFieldPuns
+  - MultiWayIf
+  - PostfixOperators
+  - KindSignatures
+  - TypeApplications
+  - PolyKinds
+  - ViewPatterns
+  - TupleSections
+  - DisambiguateRecordFields
+  - ImportQualifiedPost
+  - NegativeLiterals
+  - DeriveGeneric
+  - DeriveDataTypeable
+  - BangPatterns
+  - DefaultSignatures
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveTraversable
+  - DerivingStrategies
+  - EmptyCase
+  - ExistentialQuantification
+  - GeneralizedNewtypeDeriving
+  - InstanceSigs
+  - ImplicitParams
+  - EmptyDataDeriving
+  - RecordWildCards
+  - FunctionalDependencies
+  - NumericUnderscores
+  - NumDecimals
+  - RoleAnnotations
+  - QuantifiedConstraints

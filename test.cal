@@ -1,0 +1,10 @@
+f(x: int): int {
+    let y = 5;
+    let z = x;
+} => 5;
+
+g(x: int): int {
+    let y = f(x);
+} => 5;
+
+h(x: int): int {} => f(g(x));
