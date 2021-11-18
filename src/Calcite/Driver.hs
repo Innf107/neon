@@ -8,6 +8,7 @@ import Calcite.Parser
 import Calcite.Rename
 import Calcite.Typecheck
 import Calcite.Codegen
+import Calcite.Packager
 
 import Text.Parsec (parse, ParseError)
 
@@ -38,3 +39,12 @@ compileToCodegen :: Members '[Error CompilerError] r => Text -> Sem r [CompiledM
 compileToCodegen code = do
     ast <- compileToTypecheck code
     compile ast
+
+compileToDatapack :: Members '[Error CompilerError] r => Text -> Text -> Sem r Datapack
+compileToDatapack name code = package name <$> compileToCodegen code
+
+compileToZip :: Members '[Error CompilerError] r => Text -> Text -> Sem r Archive
+compileToZip name code = datapackToZip <$> compileToDatapack name code
+
+compileToZipLBytestring :: Members '[Error CompilerError] r => Text -> Text -> Sem r LByteString
+compileToZipLBytestring name code = fromArchive <$> compileToZip name code

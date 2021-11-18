@@ -28,6 +28,7 @@ dependencies:
 - parsec
 - polysemy
 - polysemy-plugin
+- zip-archive
 
 library:
   source-dirs: src
