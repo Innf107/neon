@@ -28,12 +28,13 @@ data Type = IntT
 
 data Name = Name {
         originalName :: Text
+    ,   nameSource :: Text
     ,   nameIndex :: Int
     } deriving (Eq, Ord)
 
 renderName :: Name -> Text
-renderName (Name originalName 0) = originalName
-renderName (Name originalName nameIndex) = originalName <> "_" <> show nameIndex
+renderName (Name originalName nameSource 0) = nameSource <> ":" <> originalName
+renderName (Name originalName nameSource nameIndex) = nameSource <> ":" <> originalName <> "_" <> show nameIndex
 
 instance Show Name where
     show = toString . renderName

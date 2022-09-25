@@ -1,58 +1,114 @@
-module Calcite.Rename where
+module Calcite.Rename (RenameError (..), rename, ModuleEnv, emptyModuleEnv) where
 
 import Calcite.Prelude
 import Calcite.Types.AST
 
 import Data.Map qualified as M
 
-data RenameError = UndefinedVar Text deriving (Show, Eq)
+data RenameError
+    = UnboundVar Text
+    | UnboundFunction Text
+    | DuplicateDefinition Text
+    deriving (Show, Eq)
 
-data RenamerState = RenamerState {
-        renamerVars :: Map Text Int
-    } deriving (Show, Eq)
+data ModuleEnv = ModuleEnv
+    { functions :: Map Text Name
+    , moduleName :: Text
+    }
+    deriving (Show)
 
-insertVar :: Text -> RenamerState -> (RenamerState, Name)
-insertVar n s = let (n', m') = M.alterF updateMap n (renamerVars s) in (s{renamerVars=m'}, n')
-    where
-        updateMap = \case
-            Nothing -> (Name n 0, Just 0)
-            Just i  -> (Name n (i + 1), Just (i + 1))
+emptyModuleEnv :: Text -> ModuleEnv
+emptyModuleEnv moduleName =
+    ModuleEnv
+        { functions = mempty
+        , moduleName
+        }
 
+data Env = Env
+    { moduleEnv :: ModuleEnv
+    , locals :: Map Text Name
+    , currentFunctionName :: Name
+    }
+    deriving (Show)
 
-lookupVar :: Members '[Error RenameError] r => Text -> RenamerState -> Sem r Name 
-lookupVar n RenamerState { renamerVars } = case lookup n renamerVars of
-    Nothing -> throw $ UndefinedVar n
-    Just i  -> pure $ Name n i
+insertFunction :: Text -> Name -> ModuleEnv -> ModuleEnv
+insertFunction originalName name env@ModuleEnv{functions} = env{functions = insert originalName name functions}
 
+insertLocal :: Text -> Name -> Env -> Env
+insertLocal originalName name env@Env{locals} = env{locals = insert originalName name locals}
 
-(<:>) :: Applicative f => f a -> f [a] -> f [a]
-(<:>) = liftA2 (:)
+newFunction :: Members '[Error RenameError] r => ModuleEnv -> Text -> Sem r (Name, ModuleEnv)
+newFunction env@ModuleEnv{functions, moduleName} originalName = case lookup originalName functions of
+    Nothing ->
+        let name = Name originalName moduleName 0
+         in pure (name, insertFunction originalName name env)
+    Just _ -> throw $ DuplicateDefinition originalName
 
-rename :: Members '[Error RenameError] r => RenamerState -> [Decl Parsed] -> Sem r [Decl Renamed]
+freshLocal :: Env -> Text -> (Name, Env)
+freshLocal env@Env{locals, currentFunctionName} originalName = do
+    let name = case lookup originalName locals of
+            Nothing -> Name originalName nameSource 0
+            Just (Name _ _ i) -> Name originalName nameSource (i + 1)
+    (name, insertLocal originalName name env)
+  where
+    -- This includes the module name since currentFunctionName is an already renamed Name
+    nameSource = show currentFunctionName
+
+rename :: Members '[Error RenameError] r => ModuleEnv -> [Decl Parsed] -> Sem r [Decl Renamed]
 rename _ [] = pure []
-rename s (DefFunction () f xs sts (Just (retExp, retTy)) : ds) = do
-    let (s', f') = insertVar f s
-    -- TODO: Rename parameter x to "<f>_<x>" and detect duplicates
-    let (sInner, xs') = foldr (\(n, t) (r, xs) -> let (r', n') = insertVar n r in (r', (n', t) : xs)) (s, []) xs
-    --                        s *not* s', because recursive functions should be implemented with 'rec' ^ 
-    sts' <- renameStmnts sInner sts
-    retExp' <- renameExpr sInner retExp
-    (DefFunction () f' xs' sts' (Just (retExp', retTy)) :) <$> rename s' ds
-rename s (DefFunction () f xs sts Nothing : ds) = undefined 
+rename modEnv (DefFunction () originalFunName params bodyStatements mReturnClause : decls) = do
+    (funName, modEnv') <- newFunction modEnv originalFunName
+
+    -- 'innerEnv' is derived from 'modEnv' *without* the definition for the current function since
+    -- recursive calls (in tail position!) have their own special rules using 'currentFunctionName'
+    let innerEnvBase = Env{moduleEnv = modEnv, locals = mempty, currentFunctionName = funName}
+    let (params', innerEnv) =
+            foldr
+                ( \(paramName, ty) (rest, env) -> do
+                    let (paramName', env') = freshLocal env paramName
+                    ((paramName', ty) : rest, env')
+                )
+                ([], innerEnvBase)
+                params
+
+    (bodyStatements', returnClauseEnv) <- renameStatements innerEnv bodyStatements
+
+    mReturnClause' <- case mReturnClause of
+        Nothing -> pure Nothing
+        Just (retExpr, retTy) -> do
+            -- This doesn't have to do any special treatment around
+            -- (tail) recursive calls, since these use the 'currentFunctionName'
+            -- directly
+            retExpr' <- renameExpr returnClauseEnv retExpr
+            pure $ Just (retExpr', retTy)
+
+    decls' <- rename modEnv' decls
+    pure (DefFunction () funName params' bodyStatements' mReturnClause' : decls')
+
+renameStatements :: Members '[Error RenameError] r => Env -> [Statement Parsed] -> Sem r ([Statement Renamed], Env)
+renameStatements env [] = pure ([], env)
+renameStatements env (DefVar () originalVarName value : statements) = do
+    let (varName, env') = freshLocal env originalVarName
+
+    -- This uses env, not env' since let bindings are (obviously) non recursive
+    value' <- renameExpr env value
     
-renameStmnts :: Members '[Error RenameError] r => RenamerState -> [Statement Parsed] -> Sem r [Statement Renamed]
-renameStmnts _ [] = pure []
--- TODO: Variable x should be renamed to "<f>_<x>" where f is the name of the enclosing function
-renameStmnts s (DefVar () x e : ds) = do
-    let (s', x') = insertVar x s
-    (DefVar () x' <$> renameExpr s e)
-        <:> renameStmnts s' ds
+    (statements', env'') <- renameStatements env' statements
+    pure (DefVar () varName value' : statements', env'')
 
-renameExpr :: Members '[Error RenameError] r => RenamerState -> (Expr Parsed) -> Sem r (Expr Renamed)
-renameExpr _ (IntLit () n)   = pure $ IntLit () n
--- TODO: Variable x should be searched for as "<f>_<x>" where f is the name of the enclosing function
-renameExpr s (Var () x)      = Var () <$> lookupVar x s
-renameExpr s (FCall () f xs) = FCall () <$> lookupVar f s <*> traverse (renameExpr s) xs
+renameExpr :: Members '[Error RenameError] r => Env -> Expr Parsed -> Sem r (Expr Renamed)
+renameExpr _ (IntLit () i) = pure (IntLit () i)
+renameExpr Env{locals} (Var () originalName) =
+    case lookup originalName locals of
+        Nothing -> throw $ UnboundVar originalName
+        Just name -> pure (Var () name)
+renameExpr env@Env{currentFunctionName, moduleEnv} (FCall () originalFunName args) = do
+    funName <-
+        if originalFunName == originalName currentFunctionName
+            then pure currentFunctionName
+            else case lookup originalFunName (functions moduleEnv) of
+                Nothing -> throw $ UnboundFunction originalFunName
+                Just funName -> pure funName
 
-
-
+    args' <- traverse (renameExpr env) args
+    pure (FCall () funName args')

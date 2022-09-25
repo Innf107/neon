@@ -25,23 +25,23 @@ lexAndParse code = do
     tokens <- mapError LexicalError $ lex code
     mapError ParseError $ fromEither $ parse module_ "" tokens
 
-compileToRename :: Members '[Error CompilerError] r => Text -> Sem r [Decl 'Renamed]
-compileToRename code = do
+compileToRename :: Members '[Error CompilerError] r => Text -> Text -> Sem r [Decl 'Renamed]
+compileToRename name code = do
     ast <- lexAndParse code
-    mapError RenameError $ rename (RenamerState mempty) ast
+    mapError RenameError $ rename (emptyModuleEnv name) ast
     
-compileToTypecheck :: Members '[Error CompilerError] r => Text -> Sem r [Decl 'Typed]
-compileToTypecheck code = do
-    ast <- compileToRename code
+compileToTypecheck :: Members '[Error CompilerError] r => Text -> Text -> Sem r [Decl 'Typed]
+compileToTypecheck name code = do
+    ast <- compileToRename name code
     mapError TypeError $ evalState (TCState mempty) $ typecheck ast
     
-compileToCodegen :: Members '[Error CompilerError] r => Text -> Sem r [CompiledModule]
-compileToCodegen code = do
-    ast <- compileToTypecheck code
+compileToCodegen :: Members '[Error CompilerError] r => Text -> Text -> Sem r [CompiledModule]
+compileToCodegen name code = do
+    ast <- compileToTypecheck name code
     compile ast
 
 compileToDatapack :: Members '[Error CompilerError] r => Text -> Text -> Sem r Datapack
-compileToDatapack name code = package name <$> compileToCodegen code
+compileToDatapack name code = package name <$> compileToCodegen name code
 
 compileToZip :: Members '[Error CompilerError] r => Text -> Text -> Sem r Archive
 compileToZip name code = datapackToZip <$> compileToDatapack name code

@@ -10,7 +10,7 @@ import Language.McFunction.PrettyPrint
 main :: IO ()
 main = do
     content <- readFile "test.cal"
-    let result = run $ runError $ compileToCodegen $ toText content
+    let result = run $ runError $ compileToCodegen "test" $ toText content
     case result of
         Left e      -> print e
         Right ms    -> do 

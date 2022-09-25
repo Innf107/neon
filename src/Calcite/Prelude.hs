@@ -36,5 +36,7 @@ import Data.Data as Export (Data)
 
 import Data.Text as Export (intercalate, split)
 
+import Data.Foldable as Export (foldrM)
+
 import Relude qualified
 type HSType = Relude.Type

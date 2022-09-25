@@ -58,11 +58,12 @@ compileStatement (DefVar () x e) = do
     compileExprToScore (NamespacedPlayer (Own $ renderName x)) calciteObj e
 
 
+-- TODO: This should really return a Text
 argName :: Name -> Int -> Name
-argName (Name fname j) i = Name (fname <> "-arg-" <> show i) j
+argName (Name fname source j) i = Name (fname <> "-arg-" <> show i) source j
 
 retName :: Name -> Name
-retName (Name fname j) = Name (fname <> "-ret") j
+retName (Name fname source j) = Name (fname <> "-ret") source j
 
 compileExprToScore :: Members '[State FunctionState] r => Selector -> Objective -> Expr Typed -> Sem r [Command]
 compileExprToScore s o (IntLit () n) = pure [Scoreboard (Players (Set s o n))]
