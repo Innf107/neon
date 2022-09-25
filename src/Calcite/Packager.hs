@@ -46,7 +46,7 @@ datapackToZip Datapack {description, datapackNamespaces} = foldr addEntryToArchi
                 packFunction (name, cmnds) = toEntry 
                     ("data/" <> toString namespace <> "/functions/" <> name <> ".mcfunction") 
                     0 
-                    (let ?namespace = namespace in encodeUtf8 $ snd $prettyPrint (name, cmnds))
+                    (let ?namespace = namespace in encodeUtf8 $ snd $ prettyPrint (name, cmnds))
 
         packMCMeta :: Text
         packMCMeta = unlines [

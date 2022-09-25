@@ -7,8 +7,7 @@ data Pass = Parsed | Renamed | Typed
 
 type family XName (p :: Pass)
 
-data Decl (p :: Pass) = DefFunction (XDefFunction p) (XName p) [(XName p, Type p)] (Type p) [Statement p] (Expr p)
-                      | DefProc     (XDefProc p)     (XName p) [(XName p, Type p)]          [Statement p]
+data Decl (p :: Pass) = DefFunction (XDefFunction p) (XName p) [(XName p, Type)] [Statement p] (Maybe (Expr p, Type))
 type family XDefFunction (p :: Pass)
 type family XDefProc     (p :: Pass)
 
@@ -23,10 +22,9 @@ type family XIntLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XFCall (p :: Pass)
 
-type role Type phantom
-data Type (p :: Pass) = IntT 
-                      | FunT [Type p] (Type p)
-                      | ProcT [Type p]
+data Type = IntT
+          | FunT [Type] Type
+          | ProcT [Type]
 
 data Name = Name {
         originalName :: Text
@@ -40,42 +38,40 @@ renderName (Name originalName nameIndex) = originalName <> "_" <> show nameIndex
 instance Show Name where
     show = toString . renderName
 
-data NoExt (p :: Pass) = NoExt deriving (Show, Eq)
-
 type instance XName Parsed  = Text
 type instance XName Renamed = Name
 type instance XName Typed   = Name
 
 
-type instance XDefFunction Parsed   = NoExt Parsed
-type instance XDefFunction Renamed  = NoExt Renamed
-type instance XDefFunction Typed    = NoExt Typed
+type instance XDefFunction Parsed   = ()
+type instance XDefFunction Renamed  = ()
+type instance XDefFunction Typed    = ()
 
-type instance XDefProc Parsed       = NoExt Parsed
-type instance XDefProc Renamed      = NoExt Renamed
-type instance XDefProc Typed        = NoExt Typed
+type instance XDefProc Parsed       = ()
+type instance XDefProc Renamed      = ()
+type instance XDefProc Typed        = ()
 
-type instance XDecl         Parsed  = NoExt Parsed
-type instance XDecl         Renamed = NoExt Renamed
-type instance XDecl         Typed   = NoExt Typed
+type instance XDecl         Parsed  = ()
+type instance XDecl         Renamed = ()
+type instance XDecl         Typed   = ()
 
-type instance XIntLit       Parsed  = NoExt Parsed
-type instance XIntLit       Renamed = NoExt Renamed
-type instance XIntLit       Typed   = NoExt Typed
+type instance XIntLit       Parsed  = ()
+type instance XIntLit       Renamed = ()
+type instance XIntLit       Typed   = ()
 
-type instance XVar          Parsed  = NoExt Parsed
-type instance XVar          Renamed = NoExt Renamed
-type instance XVar          Typed   = Type Typed
+type instance XVar          Parsed  = ()
+type instance XVar          Renamed = ()
+type instance XVar          Typed   = Type
 
-type instance XFCall        Parsed  = NoExt Parsed
-type instance XFCall        Renamed = NoExt Renamed
-type instance XFCall        Typed   = Type Typed
+type instance XFCall        Parsed  = ()
+type instance XFCall        Renamed = ()
+type instance XFCall        Typed   = Type
 
 
-class HasType t p | t -> p where
-    getType :: t -> Type p
+class HasType t where
+    getType :: t -> Type
 
-instance HasType (Expr Typed) Typed where
+instance HasType (Expr Typed) where
     getType IntLit{}  = IntT
     getType (Var t _) = t
     getType (FCall t _ _) = t
@@ -86,16 +82,10 @@ class Cast a b where
 instance Cast a b => Cast [a] [b] where
     cast = map cast
 
-instance Cast (Type p1) (Type p2) where
-    cast IntT        = IntT
-    cast (FunT xs r) = FunT (cast xs) (cast r)
-    cast (ProcT xs)  = ProcT (cast xs)
 
-
-
-instance Show (Type p) where
+instance Show Type where
     show IntT        = "int"
     show (FunT as r) = toString $ "(" <> intercalate ", " (map show as) <> ") -> " <> show r
     show (ProcT xs)  = toString $ "(" <> intercalate ", " (map show xs) <> ") -> void"
 
-deriving instance Eq (Type p)
+deriving instance Eq Type

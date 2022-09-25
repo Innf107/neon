@@ -47,7 +47,7 @@ ghc-options:
 - -freverse-errors
 
 executables:
-  calcite-exe:
+  calcite:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

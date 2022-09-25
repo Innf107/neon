@@ -24,11 +24,11 @@ calciteObj :: Objective
 calciteObj = "calcite"
 
 compileDecl :: Decl Typed -> Sem r CompiledModule
-compileDecl (DefFunction NoExt f xs _retTy sts retE) = compileFunctionOrProc f xs sts (Just retE) 
-compileDecl (DefProc NoExt f xs sts) = compileFunctionOrProc f xs sts Nothing
+compileDecl (DefFunction () f xs sts (Just (retE, retTy))) = compileFunctionOrProc f xs sts (Just retE) 
+compileDecl (DefFunction () f xs sts Nothing) = compileFunctionOrProc f xs sts Nothing
 
 compileFunctionOrProc :: Name
-    -> [(Name, Type Typed)]
+    -> [(Name, Type)]
     -> [Statement Typed]
     -> (Maybe (Expr Typed))
     -> Sem r (String, [Command])
@@ -44,7 +44,7 @@ compileFunctionOrProc f xs sts mRetE = evalState (emptyFunctionState f) do
 
     pure  (toString (renderName f), argcmds <> stmntcmds <> returnCommands)
     where
-        compileArg :: Members '[State FunctionState] r => Name -> Type Typed -> Int -> Sem r [Command]
+        compileArg :: Members '[State FunctionState] r => Name -> Type -> Int -> Sem r [Command]
         compileArg x IntT i = do
             modify (\s -> s{varLocations = insert x (Arg i) (varLocations s)})
             pure []
@@ -53,7 +53,7 @@ compileFunctionOrProc f xs sts mRetE = evalState (emptyFunctionState f) do
                                 <> renderName f <> "' at index " <> show i
 
 compileStatement :: Members '[State FunctionState] r => Statement Typed -> Sem r [Command]
-compileStatement (DefVar NoExt x e) = do
+compileStatement (DefVar () x e) = do
     modify (\s -> s{varLocations = insert x Local (varLocations s)}) 
     compileExprToScore (NamespacedPlayer (Own $ renderName x)) calciteObj e
 
@@ -65,7 +65,7 @@ retName :: Name -> Name
 retName (Name fname j) = Name (fname <> "-ret") j
 
 compileExprToScore :: Members '[State FunctionState] r => Selector -> Objective -> Expr Typed -> Sem r [Command]
-compileExprToScore s o (IntLit NoExt n) = pure [Scoreboard (Players (Set s o n))]
+compileExprToScore s o (IntLit () n) = pure [Scoreboard (Players (Set s o n))]
 compileExprToScore s o (Var IntT x) = gets functionName >>= \fname -> gets (lookup x . varLocations) <&> \case
     Just (Arg i)    -> [Scoreboard (Players (Operation s o SAssign (NamespacedPlayer (Own $ renderName $ argName fname i)) calciteObj))]
     Just Local      -> [Scoreboard (Players (Operation s o SAssign (NamespacedPlayer (Own $ renderName x)) calciteObj))]

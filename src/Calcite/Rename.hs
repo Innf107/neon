@@ -30,28 +30,29 @@ lookupVar n RenamerState { renamerVars } = case lookup n renamerVars of
 
 rename :: Members '[Error RenameError] r => RenamerState -> [Decl Parsed] -> Sem r [Decl Renamed]
 rename _ [] = pure []
-rename s (DefFunction NoExt f xs retT sts retExp : ds) = do
+rename s (DefFunction () f xs sts (Just (retExp, retTy)) : ds) = do
     let (s', f') = insertVar f s
     -- TODO: Rename parameter x to "<f>_<x>" and detect duplicates
-    let (sInner, xs') = foldr (\(n, t) (r, xs) -> let (r', n') = insertVar n r in (r', (n', cast t) : xs)) (s, []) xs
+    let (sInner, xs') = foldr (\(n, t) (r, xs) -> let (r', n') = insertVar n r in (r', (n', t) : xs)) (s, []) xs
     --                        s *not* s', because recursive functions should be implemented with 'rec' ^ 
-    (DefFunction NoExt f' xs' (cast retT) <$> renameStmnts sInner sts <*> renameExpr sInner retExp)
-        <:> rename s' ds
-rename s (DefProc NoExt f xs sts : ds) = undefined 
+    sts' <- renameStmnts sInner sts
+    retExp' <- renameExpr sInner retExp
+    (DefFunction () f' xs' sts' (Just (retExp', retTy)) :) <$> rename s' ds
+rename s (DefFunction () f xs sts Nothing : ds) = undefined 
     
 renameStmnts :: Members '[Error RenameError] r => RenamerState -> [Statement Parsed] -> Sem r [Statement Renamed]
 renameStmnts _ [] = pure []
 -- TODO: Variable x should be renamed to "<f>_<x>" where f is the name of the enclosing function
-renameStmnts s (DefVar NoExt x e : ds) = do
+renameStmnts s (DefVar () x e : ds) = do
     let (s', x') = insertVar x s
-    (DefVar NoExt x' <$> renameExpr s e)
+    (DefVar () x' <$> renameExpr s e)
         <:> renameStmnts s' ds
 
 renameExpr :: Members '[Error RenameError] r => RenamerState -> (Expr Parsed) -> Sem r (Expr Renamed)
-renameExpr _ (IntLit NoExt n)   = pure $ IntLit NoExt n
+renameExpr _ (IntLit () n)   = pure $ IntLit () n
 -- TODO: Variable x should be searched for as "<f>_<x>" where f is the name of the enclosing function
-renameExpr s (Var NoExt x)      = Var NoExt <$> lookupVar x s
-renameExpr s (FCall NoExt f xs) = FCall NoExt <$> lookupVar f s <*> traverse (renameExpr s) xs
+renameExpr s (Var () x)      = Var () <$> lookupVar x s
+renameExpr s (FCall () f xs) = FCall () <$> lookupVar f s <*> traverse (renameExpr s) xs
 
 
 
