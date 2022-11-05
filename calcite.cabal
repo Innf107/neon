@@ -25,12 +25,16 @@ source-repository head
 
 library
   exposed-modules:
-      Calcite.Codegen
+      Calcite.CalciteToMIR
+      Calcite.Config
       Calcite.Driver
       Calcite.Lexer
+      Calcite.MIR
+      Calcite.MIRToMC
       Calcite.Packager
       Calcite.Parser
       Calcite.Prelude
+      Calcite.Pretty
       Calcite.Rename
       Calcite.Typecheck
       Calcite.Types.AST
@@ -92,20 +96,23 @@ library
       NumDecimals
       RoleAnnotations
       QuantifiedConstraints
+      OverloadedLists
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors
   build-depends:
       base >=4.7 && <5
     , containers
+    , dlist
     , parsec
     , polysemy
     , polysemy-plugin
     , relude
+    , template-haskell
     , text
     , text-builder
     , zip-archive
   default-language: Haskell2010
 
-executable calcite
+executable calc
   main-is: Main.hs
   other-modules:
       Paths_calcite
@@ -163,15 +170,18 @@ executable calcite
       NumDecimals
       RoleAnnotations
       QuantifiedConstraints
+      OverloadedLists
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , calcite
     , containers
+    , dlist
     , parsec
     , polysemy
     , polysemy-plugin
     , relude
+    , template-haskell
     , text
     , text-builder
     , zip-archive
@@ -236,15 +246,18 @@ test-suite calcite-test
       NumDecimals
       RoleAnnotations
       QuantifiedConstraints
+      OverloadedLists
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , calcite
     , containers
+    , dlist
     , parsec
     , polysemy
     , polysemy-plugin
     , relude
+    , template-haskell
     , text
     , text-builder
     , zip-archive

@@ -95,6 +95,10 @@ renameStatements env (DefVar () originalVarName value : statements) = do
     
     (statements', env'') <- renameStatements env' statements
     pure (DefVar () varName value' : statements', env'')
+renameStatements env (Perform () expr : statements) = do
+    statement' <- Perform () <$> renameExpr env expr
+    (statements', env') <- renameStatements env statements
+    pure (statement' : statements', env)
 
 renameExpr :: Members '[Error RenameError] r => Env -> Expr Parsed -> Sem r (Expr Renamed)
 renameExpr _ (IntLit () i) = pure (IntLit () i)
@@ -104,6 +108,7 @@ renameExpr Env{locals} (Var () originalName) =
         Just name -> pure (Var () name)
 renameExpr env@Env{currentFunctionName, moduleEnv} (FCall () originalFunName args) = do
     funName <-
+        -- TODO: Restrict this to only work in tail position
         if originalFunName == originalName currentFunctionName
             then pure currentFunctionName
             else case lookup originalFunName (functions moduleEnv) of
@@ -112,3 +117,5 @@ renameExpr env@Env{currentFunctionName, moduleEnv} (FCall () originalFunName arg
 
     args' <- traverse (renameExpr env) args
     pure (FCall () funName args')
+renameExpr env (Return () expr) = Return () <$> renameExpr env expr
+

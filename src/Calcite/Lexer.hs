@@ -4,7 +4,7 @@ module Calcite.Lexer (
 ,   lex
 ) where
 
-import Calcite.Prelude
+import Calcite.Prelude hiding ((:>))
 
 import Data.Text qualified as T
 import Text.Builder qualified as B

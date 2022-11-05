@@ -29,6 +29,8 @@ dependencies:
 - polysemy
 - polysemy-plugin
 - zip-archive
+- dlist
+- template-haskell
 
 library:
   source-dirs: src
@@ -48,7 +50,7 @@ ghc-options:
 - -freverse-errors
 
 executables:
-  calcite:
+  calc:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -121,3 +123,4 @@ default-extensions:
   - NumDecimals
   - RoleAnnotations
   - QuantifiedConstraints
+  - OverloadedLists

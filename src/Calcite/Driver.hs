@@ -1,14 +1,20 @@
-module Calcite.Driver where
+module Calcite.Driver (CompilerError(..), compileToMC) where
 
 import Calcite.Prelude
 import Calcite.Types.AST
+import Calcite.Pretty
 
 import Calcite.Lexer
 import Calcite.Parser
 import Calcite.Rename
 import Calcite.Typecheck
-import Calcite.Codegen
 import Calcite.Packager
+
+import Calcite.MIR
+import Calcite.CalciteToMIR as CalciteToMIR
+import Calcite.MIRToMC as LIRToMC
+
+import Calcite.Config
 
 import Text.Parsec (parse, ParseError)
 
@@ -20,31 +26,18 @@ data CompilerError = LexicalError LexicalError
                    | TypeError TypeError
                    deriving (Show,Eq)    
 
-lexAndParse :: Members '[Error CompilerError] r => Text -> Sem r [Decl 'Parsed]
-lexAndParse code = do
+compileToMC :: Members '[Error CompilerError, Embed IO] r => Text -> Text -> Sem r [(FilePath, Text)]
+compileToMC name code = do
+    let Config { printLir } = getConfig ()
+
     tokens <- mapError LexicalError $ lex code
-    mapError ParseError $ fromEither $ parse module_ "" tokens
+    syntax <- mapError ParseError $ fromEither $ parse module_ "" tokens
+    renamed <- mapError RenameError $ rename (emptyModuleEnv name) syntax
+    typed <- mapError TypeError $ evalState (TCState mempty) $ typecheck renamed
 
-compileToRename :: Members '[Error CompilerError] r => Text -> Text -> Sem r [Decl 'Renamed]
-compileToRename name code = do
-    ast <- lexAndParse code
-    mapError RenameError $ rename (emptyModuleEnv name) ast
-    
-compileToTypecheck :: Members '[Error CompilerError] r => Text -> Text -> Sem r [Decl 'Typed]
-compileToTypecheck name code = do
-    ast <- compileToRename name code
-    mapError TypeError $ evalState (TCState mempty) $ typecheck ast
-    
-compileToCodegen :: Members '[Error CompilerError] r => Text -> Text -> Sem r [CompiledModule]
-compileToCodegen name code = do
-    ast <- compileToTypecheck name code
-    compile ast
+    lir <- CalciteToMIR.compile typed
+    when printLir $ putTextLn $ pretty lir
 
-compileToDatapack :: Members '[Error CompilerError] r => Text -> Text -> Sem r Datapack
-compileToDatapack name code = package name <$> compileToCodegen name code
+    pure $ LIRToMC.compile lir 
 
-compileToZip :: Members '[Error CompilerError] r => Text -> Text -> Sem r Archive
-compileToZip name code = datapackToZip <$> compileToDatapack name code
-
-compileToZipLBytestring :: Members '[Error CompilerError] r => Text -> Text -> Sem r LByteString
-compileToZipLBytestring name code = fromArchive <$> compileToZip name code
+        

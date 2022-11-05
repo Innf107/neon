@@ -46,6 +46,7 @@ tcDecl (DefFunction () f xs sts Nothing) = do
 
 tcStmnt :: Members '[State TCState, Error TypeError] r => Statement Renamed -> Sem r (Statement Typed)
 tcStmnt (DefVar () x e) = DefVar () x <$> tcExpr e
+tcStmnt (Perform () e)  = Perform () <$> tcExpr e
 
 subTypeOf :: Type -> Type -> Bool
 subTypeOf = (==) -- fine for now, as there are no actual subtypes yet.
@@ -70,4 +71,5 @@ tcExpr (FCall () f args) = do
         _ -> throw $ NonFunctionCall f fty
         where
             checkArgType ty argTy = when (not (argTy `subTypeOf` ty)) $ throw $ MismatchedParameter f ty argTy
-
+tcExpr (Return () expr) =
+    undefined
