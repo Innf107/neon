@@ -78,13 +78,13 @@ compileAssign place rvalue = case place of
             Number -> do
                 score <- localToScore local
                 assignToScore score rvalue
-    ReturnPlace () -> do
+    ReturnPlace -> do
         shape <- asks returnShape
         case shape of
             Number -> do
                 score <- returnScore
                 assignToScore score rvalue
-    WildCardPlace () -> do
+    WildCardPlace -> do
         -- We don't need to compile assignments to wildcards, since all rvalues are pure.
         -- Ideally, these should be optimized out before lowering anyway.
         pure ()
@@ -97,10 +97,10 @@ assignToScore score rvalue = do
     case rvalue of
         Use (Literal lit) -> case lit of
             IntLit n -> emitCommands ["scoreboard players set " <> score <> " calcite " <> show n]
-            UnitLit () -> undefined
+            UnitLit -> undefined
         Use (Copy place) -> case place of
-            ReturnPlace () -> error $ "MIRToMC.assignToScore: Trying to assign from return place to numeric score '" <> score <> "'"
-            WildCardPlace () -> error $ "MIRToMC.assignToScore: Trying to assign from wildcard place to numeric score '" <> score <> "'"
+            ReturnPlace -> error $ "MIRToMC.assignToScore: Trying to assign from return place to numeric score '" <> score <> "'"
+            WildCardPlace -> error $ "MIRToMC.assignToScore: Trying to assign from wildcard place to numeric score '" <> score <> "'"
             VarPlace local -> do
                 localScore <- localToScore local
                 emitCommands ["scoreboard players operation " <> score <> " calcite = " <> localScore <> " calcite"]
@@ -112,7 +112,7 @@ compileTerminator partialFun = \case
     Goto bb -> do
         blockPath <- blockFunPath True bb
         pure $ addCommands ["call " <> toText blockPath] partialFun
-    Return () -> pure partialFun -- Returns are implicit in mcfunctions
+    Return -> pure partialFun -- Returns are implicit in mcfunctions
     Call funName args returnPlace continuationBlock -> do
         -- Args are passed as the first n locals
         (partialFun, _) <- runState partialFun $ forM_ @_ @(Sem (State PartialMCFun : r)) (List.zip [0..] (toList args)) \(i, operand) -> do
@@ -120,13 +120,13 @@ compileTerminator partialFun = \case
             case operand of
                 Literal (IntLit n) -> 
                     emitCommands ["scoreboard players set " <> localInFun i funName <> " calcite " <> show n]
-                Literal (UnitLit ()) -> undefined
+                Literal UnitLit -> undefined
                 Copy place -> case place of
                     VarPlace local -> do
                         localScore <- localToScore local 
                         emitCommands ["scoreboard players operation " <> localInFun i funName <> " calcite = " <> localScore <> " calcite"]
-                    ReturnPlace x0 -> error $ "MIRToMC.compileTerminator: Trying to assign from return place"
-                    WildCardPlace x0 -> error $ "MIRToMC.compileTerminator: Trying to assign from wildcard place"
+                    ReturnPlace -> error $ "MIRToMC.compileTerminator: Trying to assign from return place"
+                    WildCardPlace -> error $ "MIRToMC.compileTerminator: Trying to assign from wildcard place"
         
         
         partialFun <- pure (addCommands ["call " <> show funName] partialFun)
@@ -139,10 +139,10 @@ compileTerminator partialFun = \case
                     VarPlace n -> do
                         score <- localToScore n
                         pure (addCommands ["scoreboard players operation " <> score <> " calcite = " <> returnScoreForFun funName <> " calcite"] partialFun)
-                    ReturnPlace () -> do
+                    ReturnPlace -> do
                         score <- returnScore
                         pure (addCommands ["scoreboard players operation " <> score <> " calcite = " <> returnScoreForFun funName <> " calcite"] partialFun)
-                    WildCardPlace () -> pure partialFun
+                    WildCardPlace -> pure partialFun
         
             
 

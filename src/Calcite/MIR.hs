@@ -54,7 +54,11 @@ instance Pretty Body where
 
 -- A block is represented as an index into the function's block map.
 -- This makes it possible to compare blocks for 'reference' equality
-newtype BasicBlock = BasicBlock { blockIndex :: (PrettyAnn "_bb$0" Int) } deriving (Eq)
+newtype BasicBlock where
+    BasicBlock :: { 
+        blockIndex :: Int
+    } -> PrettyAnn "_bb$0" BasicBlock 
+    deriving (Eq)
 
 data BasicBlockData = BasicBlockData {
     statements :: Seq Statement,
@@ -84,39 +88,41 @@ instance Pretty BasicBlockData where
     pretty BasicBlockData {statements, terminator} =
         intercalate "\n" (toList $ fmap (("    "<>) . pretty) statements |> ("    " <> pretty terminator))
 
-data Terminator
+data Terminator where
     -- | This block has a single successor. Execution directly continues there
-    = Goto (PrettyAnn "goto -> $0" BasicBlock)
-    | Return (PrettyAnn "return" ())
+    Goto :: BasicBlock -> (PrettyAnn "goto -> $0" Terminator)
+    Return :: (PrettyAnn "return" Terminator)
     -- | Call a function (currently represented by its name due to the lack of first-class functions) 
     -- with a 'target' block to continue in with the result.
-    | Call 
-        { callFun :: (PrettyAnn "$2 := $0($1*', ') -> $3" Name) 
+    Call ::
+        { callFun :: Name
         , callArgs :: (Seq Operand) 
         , destinationPlace :: Place
         , target :: BasicBlock
-        }
+        } -> PrettyAnn "$2 := $0($1*', ') -> $3" Terminator
 
 -- In LIR, expressions are only simple pure operations and all non-trivial / expensive
 -- computations happen in statements.
 
-data Place
-    = VarPlace (PrettyAnn "_$0" Int)
-    | ReturnPlace (PrettyAnn "_ret" ())
-    | WildCardPlace (PrettyAnn "_" ())
+data Place where
+    VarPlace      :: Int -> (PrettyAnn "_$0" Place)
+    ReturnPlace   :: PrettyAnn "_ret" Place
+    WildCardPlace :: PrettyAnn "_" Place
 
-data Statement
-    = Assign (PrettyAnn "$0 := $1" Place) RValue
+data Statement where
+    Assign :: Place -> RValue -> (PrettyAnn "$0 := $1" Statement)
 
-data RValue = Use (PrettyAnn "$0" Operand)
-            | BinOp (PrettyAnn "$0 $1 $2" Operand) BinOp Operand
+data RValue where
+    Use :: Operand -> (PrettyAnn "$0" RValue)
+    BinOp :: Operand -> BinOp -> Operand -> (PrettyAnn "$0 $1 $2" RValue)
 
-data Operand 
-    = Literal (PrettyAnn "$0" Literal)
-    | Copy (PrettyAnn "$0" Place)
+data Operand where
+    Literal :: Literal -> (PrettyAnn "$0" Operand)
+    Copy :: Place -> (PrettyAnn "$0" Operand)
 
-data Literal = IntLit (PrettyAnn "$0" Int)
-             | UnitLit (PrettyAnn "()" ())
+data Literal where
+    IntLit :: Int -> (PrettyAnn "$0" Literal)
+    UnitLit :: (PrettyAnn "()" Literal)
 
 data BinOp = Add
 

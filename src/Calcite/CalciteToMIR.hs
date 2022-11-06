@@ -44,8 +44,8 @@ compileStatements :: Members '[Output LowerWarning, State FunState] r => Partial
 compileStatements currentBlock = \case 
     Empty -> do
         _ <- addBlock 
-            $ finishBlock (MIR.Return ()) 
-            $ addStatements [Assign (ReturnPlace ()) (Use (Literal (UnitLit ())))] currentBlock
+            $ finishBlock MIR.Return 
+            $ addStatements [Assign ReturnPlace (Use (Literal UnitLit))] currentBlock
         pure ()
     DefVar () varName expr :<| statements -> do
         local <- newLocal varName (shapeForType (getType expr))
@@ -55,7 +55,7 @@ compileStatements currentBlock = \case
             Right nextBlock -> 
                 compileStatements nextBlock statements
     Perform () expr :<| statements -> do
-        mnextBlock <- runError $ compileExprTo (WildCardPlace ()) currentBlock expr
+        mnextBlock <- runError $ compileExprTo WildCardPlace currentBlock expr
         case (mnextBlock, statements) of
             (Left ReturnDivergence, []) -> pure ()
             (Left info, _) -> do
@@ -86,8 +86,8 @@ compileExprTo targetPlace currentBlock = \case
         pure emptyBlockData
                     
     C.Return () expr -> do
-        lastBlock <- compileExprTo (ReturnPlace ()) currentBlock expr
-        _ <- addBlock $ finishBlock (MIR.Return ()) lastBlock
+        lastBlock <- compileExprTo ReturnPlace currentBlock expr
+        _ <- addBlock $ finishBlock MIR.Return lastBlock
         throw ReturnDivergence
 
 newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Int
