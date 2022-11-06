@@ -42,6 +42,6 @@ compileToMC name code = do
     lir <- CalciteToMIR.compile typed
     when printLir $ putTextLn $ pretty lir
 
-    pure $ LIRToMC.compile lir 
+    LIRToMC.compile lir 
 
         

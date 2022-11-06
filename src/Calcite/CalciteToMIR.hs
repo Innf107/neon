@@ -28,9 +28,9 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
                 , blockData = []
                 }
 
-    statements <- pure $ case mreturn of
-            Nothing -> fromList statements
-            Just (retExp, _) -> fromList statements |> Perform () (C.Return () retExp)
+    (statements, returnShape) <- pure $ case mreturn of
+            Nothing -> (fromList statements, Number) -- TODO: Shape for Unit
+            Just (retExp, ty) -> (fromList statements |> Perform () (C.Return () retExp), shapeForType ty)
 
     (state, _) <- runState funState $ compileStatements emptyBlockData statements
 
@@ -38,7 +38,7 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
 
     let blocks = IntMap.fromList (List.zip [0..] (toList blockData))
 
-    pure $ MIR.DefFunction funName (length params) (localShapes) (Body { blocks })
+    pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks })
 
 compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r ()
 compileStatements currentBlock = \case 

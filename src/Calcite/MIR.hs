@@ -39,7 +39,7 @@ instance Pretty Shape where
 
 -- Definitions store the shapes of parameters *and all locals*!
 -- Because of this, we need to store the number of parameters separately
-data Def = DefFunction (PrettyAnn "fn $0($1) [$2*' ']:\n$3" Name) Int (Seq Shape) Body
+data Def = DefFunction (PrettyAnn "fn $0($1) [$2*' '] -> $3:\n$4" Name) Int (Seq Shape) Shape Body
 
 instance Pretty [Def] where
     pretty defs = intercalate "\n\n" (map pretty defs)
@@ -82,8 +82,7 @@ finishBlock terminator PartialBlockData { partialStatements } = BasicBlockData {
 
 instance Pretty BasicBlockData where
     pretty BasicBlockData {statements, terminator} =
-        intercalate "\n" (toList $ fmap (("    "<>) . pretty) statements)
-        <> "\n    " <> pretty terminator
+        intercalate "\n" (toList $ fmap (("    "<>) . pretty) statements |> ("    " <> pretty terminator))
 
 data Terminator
     -- | This block has a single successor. Execution directly continues there
