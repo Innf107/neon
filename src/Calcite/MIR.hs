@@ -92,7 +92,7 @@ data Terminator
     -- | Call a function (currently represented by its name due to the lack of first-class functions) 
     -- with a 'target' block to continue in with the result.
     | Call 
-        { callFun :: (PrettyAnn "$2 := $0($1*', ') -> $3" Text) 
+        { callFun :: (PrettyAnn "$2 := $0($1*', ') -> $3" Name) 
         , callArgs :: (Seq Operand) 
         , destinationPlace :: Place
         , target :: BasicBlock
@@ -104,6 +104,7 @@ data Terminator
 data Place
     = VarPlace (PrettyAnn "_$0" Int)
     | ReturnPlace (PrettyAnn "_ret" ())
+    | WildCardPlace (PrettyAnn "_" ())
 
 data Statement
     = Assign (PrettyAnn "$0 := $1" Place) RValue
@@ -116,6 +117,7 @@ data Operand
     | Copy (PrettyAnn "$0" Place)
 
 data Literal = IntLit (PrettyAnn "$0" Int)
+             | UnitLit (PrettyAnn "()" ())
 
 data BinOp = Add
 

@@ -8,10 +8,16 @@ import Calcite.MIR as MIR
 
 import Data.List qualified as List
 
-compile :: [C.Decl Typed] -> Sem r [MIR.Def]
+import Data.IntMap qualified as IntMap
+
+data DivergenceInfo = ReturnDivergence deriving (Show) -- TODO: Include a span here
+
+data LowerWarning = UnreachableCode DivergenceInfo deriving (Show)
+
+compile :: Members '[Output LowerWarning] r => [C.Decl Typed] -> Sem r [MIR.Def]
 compile = traverse compileDecl
 
-compileDecl :: C.Decl Typed -> Sem r MIR.Def
+compileDecl :: Members '[Output LowerWarning] r => C.Decl Typed -> Sem r MIR.Def
 compileDecl (C.DefFunction () funName params statements mreturn) = do
     let paramShapes = map (shapeForType . snd) params
     let funState =
@@ -22,22 +28,74 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
                 , blockData = []
                 }
 
-    let statements' = case mreturn of
+    statements <- pure $ case mreturn of
             Nothing -> fromList statements
-            Just (retExp, _) -> fromList statements |> Perform () retExp
+            Just (retExp, _) -> fromList statements |> Perform () (C.Return () retExp)
 
-    (state, _) <- runState funState $ compileStatements emptyBlockData statements'
+    (state, _) <- runState funState $ compileStatements emptyBlockData statements
 
-    pure $ MIR.DefFunction funName (length params) (undefined :: Seq Shape) (undefined :: Body)
+    let FunState { localShapes, blockData } = state
 
-compileStatements :: Members '[State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r ()
+    let blocks = IntMap.fromList (List.zip [0..] (toList blockData))
+
+    pure $ MIR.DefFunction funName (length params) (localShapes) (Body { blocks })
+
+compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r ()
 compileStatements currentBlock = \case 
     Empty -> do
-        _ <- addBlock $ finishBlock (MIR.Return ()) $ addStatements [Assign (ReturnPlace ()) undefined] currentBlock
+        _ <- addBlock 
+            $ finishBlock (MIR.Return ()) 
+            $ addStatements [Assign (ReturnPlace ()) (Use (Literal (UnitLit ())))] currentBlock
         pure ()
-    DefVar () name expr :<| statements -> undefined
-    Perform () expr :<| statements -> undefined
+    DefVar () varName expr :<| statements -> do
+        local <- newLocal varName (shapeForType (getType expr))
+        runError (compileExprTo (VarPlace local) currentBlock expr) >>= \case
+            Left info -> do
+                output (UnreachableCode info)
+            Right nextBlock -> 
+                compileStatements nextBlock statements
+    Perform () expr :<| statements -> do
+        mnextBlock <- runError $ compileExprTo (WildCardPlace ()) currentBlock expr
+        case (mnextBlock, statements) of
+            (Left ReturnDivergence, []) -> pure ()
+            (Left info, _) -> do
+                output (UnreachableCode info)
+            (Right nextBlock, _) -> compileStatements nextBlock statements
     
+compileExprTo :: Members '[State FunState, Error DivergenceInfo] r => Place -> PartialBlockData -> C.Expr Typed -> Sem r PartialBlockData
+compileExprTo targetPlace currentBlock = \case
+    C.IntLit () n -> do
+        let block = addStatements [MIR.Assign targetPlace (Use (Literal (MIR.IntLit n)))] currentBlock
+        pure block
+    Var _ty varName -> do
+        (varLocal, _varShape) <- localForVar varName
+        let block = addStatements [MIR.Assign targetPlace (Use (Copy (VarPlace varLocal)))] currentBlock
+        pure block
+    FCall _ty funName argExprs -> do
+        exprsWithLocals <- traverse (\expr -> (, expr) <$> newAnonymousLocal (shapeForType (getType expr))) argExprs
+        block <- foldrM (\(local, expr) block -> compileExprTo (VarPlace local) block expr) currentBlock exprsWithLocals
+        nextBlock <- reserveBlock 1
+        let terminator = Call {
+                    callFun = funName
+                ,   callArgs = fmap (\(local, _) -> Copy (VarPlace local)) (fromList exprsWithLocals)
+                ,   destinationPlace = targetPlace
+                ,   target = nextBlock
+                }
+        addBlock (finishBlock terminator block)
+        -- Return empty block data for the new, currently unwritten 'nextBlock'
+        pure emptyBlockData
+                    
+    C.Return () expr -> do
+        lastBlock <- compileExprTo (ReturnPlace ()) currentBlock expr
+        _ <- addBlock $ finishBlock (MIR.Return ()) lastBlock
+        throw ReturnDivergence
+
+newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Int
+newAnonymousLocal shape = state (\s@FunState{nextLocal, localShapes} -> 
+    ( nextLocal
+    , s { nextLocal = nextLocal + 1
+        , localShapes = localShapes |> shape
+        }))
 
 newLocal :: Members '[State FunState] r => Name -> Shape -> Sem r Int
 newLocal name shape = state (\s@FunState{nameLocals, nextLocal, localShapes} -> 
@@ -47,9 +105,26 @@ newLocal name shape = state (\s@FunState{nameLocals, nextLocal, localShapes} ->
         , localShapes = localShapes |> shape
         }))
 
+localForVar :: Members '[State FunState] r => Name -> Sem r (Int, Shape)
+localForVar name = do
+    FunState { nameLocals, localShapes } <- get
+    let local = case lookup name nameLocals of
+            Just local -> local
+            Nothing -> error $ "CalciteToMIR.localForVar: Invalid local variable '" <> show name <> "'. There is no local associated with this variable!"
+    let shape = index localShapes local
+    pure (local, shape)
+
 addBlock :: Members '[State FunState] r => BasicBlockData -> Sem r BasicBlock
 addBlock newBlock = state (\s@FunState { blockData } -> 
     (BasicBlock { blockIndex = length blockData }, s { blockData = blockData |> newBlock }))
+
+-- | Reserve a reference to the next 'nth' block (starting at 0!) without associating any data with it.
+-- THIS REQUIRES THAT THE BLOCK WILL BE WRITTEN TO IMMEDIATELY!
+-- Any subsequent call to `addBlock` (after `>= offset` calls to be exact) that is not
+-- associated with this `reserveBlock` call, or any access of the block before an associated 
+-- `addBlock` call is invalid and will almost definitely crash or produce wildly incorrect results!
+reserveBlock :: Members '[State FunState] r => Int -> Sem r BasicBlock
+reserveBlock offset = gets (\FunState {blockData} -> BasicBlock { blockIndex = length blockData + offset })
 
 data FunState = FunState
     { nameLocals :: Map Name Int

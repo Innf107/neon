@@ -22,6 +22,10 @@ usage = unlines [
 failUsage :: Text -> IO a
 failUsage message = putTextLn (message <> "\n\n" <> usage) >> exitFailure
 
+prettyLowerWarning :: LowerWarning -> Text
+prettyLowerWarning = \case
+    UnreachableCode reason -> "\ESC[1m\ESC[95m\STXWARNING:\ESC[0m\ESC[1m\STX Unreachable code. Reason: " <> show reason <> "\ESC[0m\STX"
+
 main :: IO ()
 main = do    
     file <- parseArgs >>= \case
@@ -29,7 +33,7 @@ main = do
         [] -> failUsage "Missing required argument"
         _ -> failUsage "Too many arguments"
     content <- readFileText (toString file)
-    result <- runM $ runError $ compileToMC (fromMaybe file $ Text.stripSuffix ".cal" file) content
+    result <- runM $ runError $ runOutputStdout prettyLowerWarning $ compileToMC (fromMaybe file $ Text.stripSuffix ".cal" file) content
     case result of
         Left e          -> print e
         Right mcmods    -> do 

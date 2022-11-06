@@ -3,6 +3,7 @@ module Calcite.Prelude (
     module Export
 ,   HSType
 ,   state
+,   runOutputStdout
 ) where
 
 import Relude as Export hiding (
@@ -86,3 +87,7 @@ state f = do
     let (x, s') = f s
     put s'
     pure x
+
+runOutputStdout :: Members '[Embed IO] r => (o -> Text) -> Sem (Output o : r) a -> Sem r a
+runOutputStdout pretty = interpret \case
+    Output o -> putTextLn (pretty o)

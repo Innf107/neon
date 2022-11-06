@@ -1,4 +1,8 @@
-module Calcite.Driver (CompilerError(..), compileToMC) where
+module Calcite.Driver ( 
+      CompilerError(..)
+    , LowerWarning (..)
+    , compileToMC
+    ) where
 
 import Calcite.Prelude
 import Calcite.Types.AST
@@ -26,7 +30,7 @@ data CompilerError = LexicalError LexicalError
                    | TypeError TypeError
                    deriving (Show,Eq)    
 
-compileToMC :: Members '[Error CompilerError, Embed IO] r => Text -> Text -> Sem r [(FilePath, Text)]
+compileToMC :: Members '[Error CompilerError, Embed IO, Output LowerWarning] r => Text -> Text -> Sem r [(FilePath, Text)]
 compileToMC name code = do
     let Config { printLir } = getConfig ()
 
