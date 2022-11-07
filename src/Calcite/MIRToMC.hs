@@ -99,14 +99,43 @@ assignToScore score rvalue = do
         Use (Literal lit) -> case lit of
             IntLit n -> emitCommands ["scoreboard players set " <> score <> " calcite " <> show n]
             UnitLit -> undefined
-        Use (Copy place) -> case place of
-            ReturnPlace -> error $ "MIRToMC.assignToScore: Trying to assign from return place to numeric score '" <> score <> "'"
-            WildCardPlace -> error $ "MIRToMC.assignToScore: Trying to assign from wildcard place to numeric score '" <> score <> "'"
-            LocalPlace local -> do
-                localScore <- localToScore local
-                emitCommands ["scoreboard players operation " <> score <> " calcite = " <> localScore <> " calcite"]
-        BinOp op bo op' -> undefined
+        Use (Copy place) -> do
+            localScore <- placeAsScoreRValue place
+            emitCommands ["scoreboard players operation " <> score <> " calcite = " <> localScore <> " calcite"]
+        PurePrimOp purePrimOp operands -> assignPurePrimOpToScore score purePrimOp operands
+
+assignPurePrimOpToScore :: Members '[State LowerState, Reader FunctionInfo, State PartialMCFun] r
+                        => Text 
+                        -> PurePrimOp 
+                        -> Seq Operand 
+                        -> Sem r ()
+assignPurePrimOpToScore score prim operands = case prim of
+    -- This supports variadic add for now. Not sure if that is going to be useful or more of a burden
+    -- in the future 
+    PrimAdd -> case operands of
+        Empty -> error "trying to apply +# primop to an empty argument list"
+        (operand :<| operands) -> do
+            case operand of
+                Literal (IntLit n) -> emitCommands ["scoreboard players set " <> score <> " calcite " <> show n]
+                Literal UnitLit -> error "+#: Invalid unit literal operand"
+                Copy place -> do
+                    score <- placeAsScoreRValue place
+                    emitCommands ["scoreboard players operation " <> score <> " calcite = " <> score <> " calcite"]
+            forM_ operands \case
+                Literal (IntLit n) -> emitCommands ["scoreboard players add " <> score <> " calcite " <> show n]
+                Literal UnitLit -> error "+#: Invalid unit literal operand"
+                Copy place -> do
+                    score <- placeAsScoreRValue place
+                    emitCommands ["scoreboard players operation " <> score <> " calcite += " <> score <> " calcite"]
+
     
+
+placeAsScoreRValue :: (Members '[Reader FunctionInfo] r, HasCallStack) => Place -> Sem r Text
+placeAsScoreRValue = \case
+    ReturnPlace -> error $ "Trying to treat return place as numeric rvalue"
+    WildCardPlace -> error $ "Trying to treat wildcard place as numeric rvalue"
+    LocalPlace local -> localToScore local
+                
 
 compileTerminator :: forall r. Members '[State LowerState, Reader FunctionInfo] r => PartialMCFun -> Terminator -> Sem r PartialMCFun
 compileTerminator partialFun = \case
@@ -122,12 +151,9 @@ compileTerminator partialFun = \case
                 Literal (IntLit n) -> 
                     emitCommands ["scoreboard players set " <> localInFun (Local i Nothing) funName <> " calcite " <> show n]
                 Literal UnitLit -> undefined
-                Copy place -> case place of
-                    LocalPlace local -> do
-                        localScore <- localToScore local 
-                        emitCommands ["scoreboard players operation " <> localInFun (Local i Nothing) funName <> " calcite = " <> localScore <> " calcite"]
-                    ReturnPlace -> error $ "MIRToMC.compileTerminator: Trying to assign from return place"
-                    WildCardPlace -> error $ "MIRToMC.compileTerminator: Trying to assign from wildcard place"
+                Copy place -> do
+                    score <- placeAsScoreRValue place
+                    emitCommands ["scoreboard players operation " <> localInFun (Local i Nothing) funName <> " calcite = " <> score <> " calcite"]
         
         
         partialFun <- pure (addCommands ["call " <> show funName] partialFun)

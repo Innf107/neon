@@ -8,7 +8,8 @@ data TypeError = WrongFunctionReturn Name Type Type
                | NonFunctionCall Name Type
                | WrongNumberOfParams Name [Type] [Type]
                | MismatchedParameter Name Type Type
-               deriving (Show, Eq)
+               | MismatchedOpParameters BinOp Type Type
+               deriving Show
 
 data TCState = TCState {
     varTypes :: Map Name Type
@@ -74,5 +75,12 @@ tcExpr (FCall () f args) = do
         _ -> throw $ NonFunctionCall f fty
         where
             checkArgType ty argTy = when (not (argTy `subTypeOf` ty)) $ throw $ MismatchedParameter f ty argTy
-tcExpr (Return () expr) =
+tcExpr (BinOp () left Add right) = do
+    left' <- tcExpr left
+    unless (getType left' `subTypeOf` IntT) $ throw $ MismatchedOpParameters Add (getType left') IntT
+    right' <- tcExpr right
+    unless (getType right' `subTypeOf` IntT) $ throw $ MismatchedOpParameters Add (getType right') IntT
+    pure (BinOp IntT left' Add right')
+
+tcExpr (Return () expr) = do
     undefined

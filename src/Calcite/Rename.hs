@@ -117,5 +117,6 @@ renameExpr env@Env{currentFunctionName, moduleEnv} (FCall () originalFunName arg
 
     args' <- traverse (renameExpr env) args
     pure (FCall () funName args')
+renameExpr env (BinOp () left op right) = BinOp () <$> renameExpr env left <*> pure op <*> renameExpr env right
 renameExpr env (Return () expr) = Return () <$> renameExpr env expr
 

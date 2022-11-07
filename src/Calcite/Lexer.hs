@@ -14,7 +14,7 @@ import Data.Char
 data LexicalError = UnexpectedChar Char deriving (Show, Eq)
 
 reserved :: Set Text
-reserved = fromList ["int", "return", "let", ";", ":", "="]
+reserved = fromList ["int", "return", "let", ";", ":", "=", "+"]
 
 data Token = TReserved Text
            | TReservedOp Text

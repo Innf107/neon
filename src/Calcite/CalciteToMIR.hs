@@ -82,7 +82,12 @@ compileExprTo targetPlace currentBlock = \case
         addBlock (finishBlock terminator block)
         -- Return empty block data for the new, currently unwritten 'nextBlock'
         pure emptyBlockData
-                    
+    BinOp _ty left Add right -> do
+        leftLocal <- newAnonymousLocal Number
+        block <- compileExprTo (LocalPlace leftLocal) currentBlock left
+        rightLocal <- newAnonymousLocal Number
+        block <- compileExprTo (LocalPlace rightLocal) block right
+        pure $ addStatements [MIR.Assign targetPlace (PurePrimOp PrimAdd [Copy (LocalPlace (leftLocal)), Copy (LocalPlace (rightLocal))])] block
     C.Return () expr -> do
         lastBlock <- compileExprTo ReturnPlace currentBlock expr
         _ <- addBlock $ finishBlock MIR.Return lastBlock

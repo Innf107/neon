@@ -10,7 +10,7 @@ module Calcite.MIR (
     RValue (..),
     Operand (..),
     Literal (..),
-    BinOp (..),
+    PurePrimOp (..),
     Shape (..),
     Local (..),
 
@@ -132,8 +132,8 @@ data Statement where
     Assign :: Place -> RValue -> (PrettyAnn "$0 := $1" Statement)
 
 data RValue where
-    Use :: Operand -> (PrettyAnn "$0" RValue)
-    BinOp :: Operand -> BinOp -> Operand -> (PrettyAnn "$0 $1 $2" RValue)
+    Use :: Operand -> PrettyAnn "$0" RValue
+    PurePrimOp :: PurePrimOp -> Seq Operand -> PrettyAnn "$0#($1*', ')" RValue
 
 data Operand where
     Literal :: Literal -> (PrettyAnn "$0" Operand)
@@ -143,11 +143,8 @@ data Literal where
     IntLit :: Int -> (PrettyAnn "$0" Literal)
     UnitLit :: (PrettyAnn "()" Literal)
 
-data BinOp = Add
-
-instance Pretty BinOp where
-    pretty Add = "+"
-
+data PurePrimOp where
+    PrimAdd :: PrettyAnn "+" PurePrimOp
 
 makePretty ''Def
 makePretty ''BasicBlock
@@ -157,5 +154,6 @@ makePretty ''RValue
 makePretty ''Statement
 makePretty ''Operand
 makePretty ''Literal
+makePretty ''PurePrimOp
 
 

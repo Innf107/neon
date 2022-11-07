@@ -26,7 +26,7 @@ data CompilerError = LexicalError LexicalError
                    | ParseError ParseError
                    | RenameError RenameError
                    | TypeError TypeError
-                   deriving (Show,Eq)    
+                   deriving Show    
 
 compileToMC :: Members '[Error CompilerError, Embed IO, Output LowerWarning] r => Text -> Text -> Sem r [(FilePath, Text)]
 compileToMC name code = do

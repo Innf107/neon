@@ -63,7 +63,16 @@ defVar = "variable definition" <??>
         <*> expr
 
 expr :: Parser (Expr Parsed)
-expr = "expression" <??> intLit <|> returnExp <|> fcallOrVar 
+expr = "expression" <??> intLit <|> returnExp <|> binOp <|> fcallOrVar 
+
+binOp :: Parser (Expr Parsed)
+binOp = do
+    -- TODO: binary operators are currently parsed right associatively... ugh
+    (left, op) <- P.try $ (,) <$> fcallOrVar <*> op
+    right <- expr
+    pure (BinOp () left op right)
+        where
+            op = Add <$ reservedOp "+"
 
 fcallOrVar :: Parser (Expr Parsed)
 fcallOrVar =

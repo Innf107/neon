@@ -22,12 +22,16 @@ type family XPerform (p :: Pass)
 data Expr (p :: Pass) = IntLit (XIntLit p) Int
                       | Var (XVar p) (XName p)
                       | FCall (XFCall p) (XName p) [Expr p]
+                      | BinOp (XBinOp p) (Expr p) BinOp (Expr p)
                       | Return (XReturn p) (Expr p)
                     -- XName p is fine here, since first class functions are not supported anyway.
 type family XIntLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XFCall (p :: Pass)
+type family XBinOp (p :: Pass)
 type family XReturn (p :: Pass)
+
+data BinOp = Add deriving (Show)
 
 data Type = IntT
           | FunT [Type] Type
@@ -83,6 +87,10 @@ type instance XFCall        Parsed  = ()
 type instance XFCall        Renamed = ()
 type instance XFCall        Typed   = Type
 
+type instance XBinOp        Parsed  = ()
+type instance XBinOp        Renamed = ()
+type instance XBinOp        Typed   = Type
+
 type instance XReturn       Parsed  = ()
 type instance XReturn       Renamed = ()
 type instance XReturn       Typed   = ()
@@ -94,6 +102,7 @@ instance HasType (Expr Typed) where
     getType IntLit{}  = IntT
     getType (Var t _) = t
     getType (FCall t _ _) = t
+    getType (BinOp t _ _ _) = t 
     getType (Return _ _) = NeverT
 
 class Cast a b where
