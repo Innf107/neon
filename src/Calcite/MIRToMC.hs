@@ -119,14 +119,14 @@ assignPurePrimOpToScore score prim operands = case prim of
                 Literal (IntLit n) -> emitCommands ["scoreboard players set " <> score <> " calcite " <> show n]
                 Literal UnitLit -> error "+#: Invalid unit literal operand"
                 Copy place -> do
-                    score <- placeAsScoreRValue place
-                    emitCommands ["scoreboard players operation " <> score <> " calcite = " <> score <> " calcite"]
+                    placeScore <- placeAsScoreRValue place
+                    emitCommands ["scoreboard players operation " <> score <> " calcite = " <> placeScore <> " calcite"]
             forM_ operands \case
                 Literal (IntLit n) -> emitCommands ["scoreboard players add " <> score <> " calcite " <> show n]
                 Literal UnitLit -> error "+#: Invalid unit literal operand"
                 Copy place -> do
-                    score <- placeAsScoreRValue place
-                    emitCommands ["scoreboard players operation " <> score <> " calcite += " <> score <> " calcite"]
+                    placeScore <- placeAsScoreRValue place
+                    emitCommands ["scoreboard players operation " <> score <> " calcite += " <> placeScore <> " calcite"]
 
     
 
