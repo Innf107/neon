@@ -84,3 +84,7 @@ tcExpr (BinOp () left Add right) = do
 
 tcExpr (Return () expr) = do
     undefined
+tcExpr (ExprBlock () statements retExpr) = do
+    statements' <- traverse tcStmnt statements
+    retExpr' <- tcExpr retExpr
+    pure (ExprBlock () statements' retExpr')

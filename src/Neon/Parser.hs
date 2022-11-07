@@ -63,7 +63,7 @@ defVar = "variable definition" <??>
         <*> expr
 
 expr :: Parser (Expr Parsed)
-expr = "expression" <??> intLit <|> returnExp <|> binOp <|> fcallOrVar 
+expr = "expression" <??> (intLit <|> returnExp <|> exprBlock <|> binOp <|> fcallOrVar)
 
 binOp :: Parser (Expr Parsed)
 binOp = do
@@ -88,6 +88,17 @@ fcallOrVar =
 
 returnExp :: Parser (Expr Parsed)
 returnExp = (\_ e -> Return () e) <$> reserved "return" <*> expr
+
+exprBlock :: Parser (Expr Parsed)
+exprBlock = "expression block" <??> (\_ statements -> \case
+                Just retExpr -> ExprBlock () (fromList statements) retExpr
+                Nothing -> undefined)
+        <$> paren "{"
+        <*> many statement
+        <*> ( Just <$> expr <* paren "}"
+                <|> pure Nothing <* paren "}"
+            )
+
 
 intLit :: Parser (Expr Parsed)
 intLit =

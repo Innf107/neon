@@ -24,12 +24,14 @@ data Expr (p :: Pass) = IntLit (XIntLit p) Int
                       | FCall (XFCall p) (XName p) [Expr p]
                       | BinOp (XBinOp p) (Expr p) BinOp (Expr p)
                       | Return (XReturn p) (Expr p)
-                    -- XName p is fine here, since first class functions are not supported anyway.
+                      | ExprBlock (XExprBlock p) (Seq (Statement p)) (Expr p)
+
 type family XIntLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XFCall (p :: Pass)
 type family XBinOp (p :: Pass)
 type family XReturn (p :: Pass)
+type family XExprBlock (p :: Pass)
 
 data BinOp = Add deriving (Show)
 
@@ -95,6 +97,10 @@ type instance XReturn       Parsed  = ()
 type instance XReturn       Renamed = ()
 type instance XReturn       Typed   = ()
 
+type instance XExprBlock    Parsed  = ()
+type instance XExprBlock    Renamed = ()
+type instance XExprBlock    Typed   = ()
+
 class HasType t where
     getType :: t -> Type
 
@@ -104,6 +110,7 @@ instance HasType (Expr Typed) where
     getType (FCall t _ _) = t
     getType (BinOp t _ _ _) = t 
     getType (Return _ _) = NeverT
+    getType (ExprBlock _ _ retExpr) = getType retExpr
 
 class Cast a b where
     cast :: a -> b

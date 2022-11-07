@@ -97,7 +97,7 @@ renameStatements env (DefVar () originalVarName value : statements) = do
     pure (DefVar () varName value' : statements', env'')
 renameStatements env (Perform () expr : statements) = do
     statement' <- Perform () <$> renameExpr env expr
-    (statements', env') <- renameStatements env statements
+    (statements', env) <- renameStatements env statements
     pure (statement' : statements', env)
 
 renameExpr :: Members '[Error RenameError] r => Env -> Expr Parsed -> Sem r (Expr Renamed)
@@ -119,4 +119,12 @@ renameExpr env@Env{currentFunctionName, moduleEnv} (FCall () originalFunName arg
     pure (FCall () funName args')
 renameExpr env (BinOp () left op right) = BinOp () <$> renameExpr env left <*> pure op <*> renameExpr env right
 renameExpr env (Return () expr) = Return () <$> renameExpr env expr
+renameExpr env (ExprBlock () statements retExpr) = do
+    -- TODO: Use 'Seq' everywhere in here
+    -- We only use 'innerEnv' in the retExpr, which maintains a separate scope (exactly what we want).
+    -- The containing environment is *not* mutated by this.
+    (statements', innerEnv) <- renameStatements env (toList statements)
+    retExpr' <- renameExpr innerEnv retExpr
+    pure (ExprBlock () (fromList statements') retExpr')
+
 

@@ -32,35 +32,43 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
             Nothing -> (fromList statements, Number) -- TODO: Shape for Unit
             Just (retExp, ty) -> (fromList statements |> Perform () (C.Return () retExp), shapeForType ty)
 
-    (state, _) <- runState funState $ compileStatements emptyBlockData statements
-
+    (state, ()) <- runState funState $ do
+        mlastBlock <- compileStatements emptyBlockData statements
+        case mlastBlock of
+            Nothing -> pure ()
+            Just lastBlock -> void $ addBlock 
+                $ finishBlock MIR.Return 
+                $ addStatements [Assign ReturnPlace (Use (Literal UnitLit))] lastBlock
+    
     let FunState { localShapes, blockData } = state
 
     pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks=blockData })
 
-compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r ()
+compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r (Maybe PartialBlockData)
 compileStatements currentBlock = \case 
-    Empty -> do
-        _ <- addBlock 
-            $ finishBlock MIR.Return 
-            $ addStatements [Assign ReturnPlace (Use (Literal UnitLit))] currentBlock
-        pure ()
+    Empty -> pure (Just currentBlock)
     DefVar () varName expr :<| statements -> do
         local <- newLocal varName (shapeForType (getType expr))
         runError (compileExprTo (LocalPlace local) currentBlock expr) >>= \case
             Left info -> do
                 output (UnreachableCode info)
+                pure Nothing
             Right nextBlock -> 
                 compileStatements nextBlock statements
     Perform () expr :<| statements -> do
         mnextBlock <- runError $ compileExprTo WildCardPlace currentBlock expr
         case (mnextBlock, statements) of
-            (Left ReturnDivergence, []) -> pure ()
+            (Left ReturnDivergence, []) -> pure Nothing
             (Left info, _) -> do
                 output (UnreachableCode info)
+                pure Nothing
             (Right nextBlock, _) -> compileStatements nextBlock statements
     
-compileExprTo :: Members '[State FunState, Error DivergenceInfo] r => Place -> PartialBlockData -> C.Expr Typed -> Sem r PartialBlockData
+compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWarning] r 
+              => Place 
+              -> PartialBlockData 
+              -> C.Expr Typed 
+              -> Sem r PartialBlockData
 compileExprTo targetPlace currentBlock = \case
     C.IntLit () n -> do
         let block = addStatements [MIR.Assign targetPlace (Use (Literal (MIR.IntLit n)))] currentBlock
@@ -92,6 +100,11 @@ compileExprTo targetPlace currentBlock = \case
         lastBlock <- compileExprTo ReturnPlace currentBlock expr
         _ <- addBlock $ finishBlock MIR.Return lastBlock
         throw ReturnDivergence
+    C.ExprBlock () statements retExpr -> do
+        compileStatements currentBlock statements >>= \case
+            -- The block diverges in all branches, so this expression necessarily diverges
+            Nothing -> throw ReturnDivergence
+            Just lastBlock -> compileExprTo targetPlace lastBlock retExpr
 
 newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Local
 newAnonymousLocal shape = state (\s@FunState{nextLocal, localShapes} -> 
