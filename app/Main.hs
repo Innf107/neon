@@ -1,20 +1,20 @@
 module Main where
 
-import Calcite.Prelude
+import Neon.Prelude
 
-import Calcite.Driver
-import Calcite.Packager
+import Neon.Driver
+import Neon.Packager
 
 import System.Environment (getArgs)
 
 import Data.Text qualified as Text
-import Calcite.Config (modifyConfig, Config (..), getConfig)
+import Neon.Config (modifyConfig, Config (..), getConfig)
 
 import Codec.Archive.Zip (fromArchive)
 
 usage :: Text
 usage = unlines [
-        "usage: calc [OPTIONS] <FILE>"
+        "usage: neonc [OPTIONS] <FILE>"
     ,   ""
     ,   "OPTIONS"
     ,   "--print-mir            Print the mid level IR for debugging purposes"

@@ -1,7 +1,7 @@
-module Calcite.Typecheck where
+module Neon.Typecheck where
 
-import Calcite.Prelude
-import Calcite.Types.AST
+import Neon.Prelude
+import Neon.Syntax
 
 -- Whenever two types are given, the first one was 'expected', while the second was 'provided'.
 data TypeError = WrongFunctionReturn Name Type Type 

@@ -1,24 +1,24 @@
-module Calcite.Driver ( 
+module Neon.Driver ( 
       CompilerError(..)
     , LowerWarning (..)
     , compileToMC
     ) where
 
-import Calcite.Prelude
-import Calcite.Types.AST
-import Calcite.Pretty
+import Neon.Prelude
+import Neon.Syntax
+import Neon.Pretty
 
-import Calcite.Lexer
-import Calcite.Parser
-import Calcite.Rename
-import Calcite.Typecheck
-import Calcite.Packager
+import Neon.Lexer
+import Neon.Parser
+import Neon.Rename
+import Neon.Typecheck
+import Neon.Packager
 
-import Calcite.MIR
-import Calcite.CalciteToMIR as CalciteToMIR
-import Calcite.MIRToMC as LIRToMC
+import Neon.MIR
+import Neon.NeonToMIR as NeonToMIR
+import Neon.MIRToMC as LIRToMC
 
-import Calcite.Config
+import Neon.Config
 
 import Text.Parsec (parse, ParseError)
 
@@ -37,7 +37,7 @@ compileToMC name code = do
     renamed <- mapError RenameError $ rename (emptyModuleEnv name) syntax
     typed <- mapError TypeError $ evalState (TCState mempty) $ typecheck renamed
 
-    lir <- CalciteToMIR.compile typed
+    lir <- NeonToMIR.compile typed
     when printLir $ putTextLn $ pretty lir
 
     LIRToMC.compile lir 

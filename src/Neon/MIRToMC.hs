@@ -1,9 +1,9 @@
-module Calcite.MIRToMC where
+module Neon.MIRToMC where
 
-import Calcite.Prelude
-import Calcite.Types.AST (Name (..), renderNameNoPrefix, renderName)
+import Neon.Prelude
+import Neon.Syntax (Name (..), renderNameNoPrefix, renderName)
 
-import Calcite.MIR as MIR
+import Neon.MIR as MIR
 
 import Data.Map qualified as Map
 import Data.IntMap qualified as IntMap
@@ -97,11 +97,11 @@ assignToScore :: Members '[State LowerState, Reader FunctionInfo, State PartialM
 assignToScore score rvalue = do
     case rvalue of
         Use (Literal lit) -> case lit of
-            IntLit n -> emitCommands ["scoreboard players set " <> score <> " calcite " <> show n]
+            IntLit n -> emitCommands ["scoreboard players set " <> score <> " neon " <> show n]
             UnitLit -> undefined
         Use (Copy place) -> do
             localScore <- placeAsScoreRValue place
-            emitCommands ["scoreboard players operation " <> score <> " calcite = " <> localScore <> " calcite"]
+            emitCommands ["scoreboard players operation " <> score <> " neon = " <> localScore <> " neon"]
         PurePrimOp purePrimOp operands -> assignPurePrimOpToScore score purePrimOp operands
 
 assignPurePrimOpToScore :: Members '[State LowerState, Reader FunctionInfo, State PartialMCFun] r
@@ -116,17 +116,17 @@ assignPurePrimOpToScore score prim operands = case prim of
         Empty -> error "trying to apply +# primop to an empty argument list"
         (operand :<| operands) -> do
             case operand of
-                Literal (IntLit n) -> emitCommands ["scoreboard players set " <> score <> " calcite " <> show n]
+                Literal (IntLit n) -> emitCommands ["scoreboard players set " <> score <> " neon " <> show n]
                 Literal UnitLit -> error "+#: Invalid unit literal operand"
                 Copy place -> do
                     placeScore <- placeAsScoreRValue place
-                    emitCommands ["scoreboard players operation " <> score <> " calcite = " <> placeScore <> " calcite"]
+                    emitCommands ["scoreboard players operation " <> score <> " neon = " <> placeScore <> " neon"]
             forM_ operands \case
-                Literal (IntLit n) -> emitCommands ["scoreboard players add " <> score <> " calcite " <> show n]
+                Literal (IntLit n) -> emitCommands ["scoreboard players add " <> score <> " neon " <> show n]
                 Literal UnitLit -> error "+#: Invalid unit literal operand"
                 Copy place -> do
                     placeScore <- placeAsScoreRValue place
-                    emitCommands ["scoreboard players operation " <> score <> " calcite += " <> placeScore <> " calcite"]
+                    emitCommands ["scoreboard players operation " <> score <> " neon += " <> placeScore <> " neon"]
 
     
 
@@ -149,11 +149,11 @@ compileTerminator partialFun = \case
             -- TODO: Do something about other shapes and get the relevant shape in the first place
             case operand of
                 Literal (IntLit n) -> 
-                    emitCommands ["scoreboard players set " <> localInFun (Local i Nothing) funName <> " calcite " <> show n]
+                    emitCommands ["scoreboard players set " <> localInFun (Local i Nothing) funName <> " neon " <> show n]
                 Literal UnitLit -> undefined
                 Copy place -> do
                     score <- placeAsScoreRValue place
-                    emitCommands ["scoreboard players operation " <> localInFun (Local i Nothing) funName <> " calcite = " <> score <> " calcite"]
+                    emitCommands ["scoreboard players operation " <> localInFun (Local i Nothing) funName <> " neon = " <> score <> " neon"]
         
         
         partialFun <- pure (addCommands ["call " <> show funName] partialFun)
@@ -165,10 +165,10 @@ compileTerminator partialFun = \case
                 case returnPlace of
                     LocalPlace n -> do
                         score <- localToScore n
-                        pure (addCommands ["scoreboard players operation " <> score <> " calcite = " <> returnScoreForFun funName <> " calcite"] partialFun)
+                        pure (addCommands ["scoreboard players operation " <> score <> " neon = " <> returnScoreForFun funName <> " neon"] partialFun)
                     ReturnPlace -> do
                         score <- returnScore
-                        pure (addCommands ["scoreboard players operation " <> score <> " calcite = " <> returnScoreForFun funName <> " calcite"] partialFun)
+                        pure (addCommands ["scoreboard players operation " <> score <> " neon = " <> returnScoreForFun funName <> " neon"] partialFun)
                     WildCardPlace -> pure partialFun
         
             

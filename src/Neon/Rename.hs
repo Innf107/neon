@@ -1,7 +1,7 @@
-module Calcite.Rename (RenameError (..), rename, ModuleEnv, emptyModuleEnv) where
+module Neon.Rename (RenameError (..), rename, ModuleEnv, emptyModuleEnv) where
 
-import Calcite.Prelude
-import Calcite.Types.AST
+import Neon.Prelude
+import Neon.Syntax
 
 import Data.Map qualified as M
 

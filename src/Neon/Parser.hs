@@ -1,8 +1,8 @@
-module Calcite.Parser where
+module Neon.Parser where
 
-import Calcite.Lexer
-import Calcite.Prelude hiding (many, (<|>))
-import Calcite.Types.AST
+import Neon.Lexer
+import Neon.Prelude hiding (many, (<|>))
+import Neon.Syntax
 
 import Text.Parsec as P
 import Text.Parsec.Pos as P

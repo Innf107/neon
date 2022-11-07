@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Calcite.MIR (
+module Neon.MIR (
     Def (..),
     Body (..),
     BasicBlock (..),
@@ -20,14 +20,14 @@ module Calcite.MIR (
     finishBlock,
 ) where
 
-import Calcite.Prelude
+import Neon.Prelude
 
-import Calcite.Pretty
+import Neon.Pretty
 
-import Calcite.Types.AST (Name, renderNameNoPrefix, renderName) -- Ugh
+import Neon.Syntax (Name, renderNameNoPrefix, renderName) -- Ugh
 import Data.Unique
 import Data.IntMap qualified as IntMap
-import Calcite.Config (Config(..), getConfig)
+import Neon.Config (Config(..), getConfig)
 
 {- | The Shape is effectively the 'type' of LIR expressions.
  This is not a traditional nominal type, but more about the, well, shape

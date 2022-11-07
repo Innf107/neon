@@ -1,10 +1,10 @@
-module Calcite.CalciteToMIR where
+module Neon.NeonToMIR where
 
-import Calcite.Prelude
+import Neon.Prelude
 
-import Calcite.Types.AST as C
+import Neon.Syntax as C
 
-import Calcite.MIR as MIR
+import Neon.MIR as MIR
 
 import Data.List qualified as List
 
@@ -113,7 +113,7 @@ localForVar name = do
     FunState { nameLocals, localShapes } <- get
     let local = case lookup name nameLocals of
             Just local -> local
-            Nothing -> error $ "CalciteToMIR.localForVar: Invalid local variable '" <> show name <> "'. There is no local associated with this variable!"
+            Nothing -> error $ "NeonToMIR.localForVar: Invalid local variable '" <> show name <> "'. There is no local associated with this variable!"
     let shape = index localShapes local
     pure (Local { localIx = local, localName = Just name }, shape)
 

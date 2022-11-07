@@ -1,6 +1,6 @@
-module Calcite.Config (Config (..), defaultConfig, getConfig, modifyConfig) where
+module Neon.Config (Config (..), defaultConfig, getConfig, modifyConfig) where
 
-import Calcite.Prelude
+import Neon.Prelude
 
 import System.IO.Unsafe
 

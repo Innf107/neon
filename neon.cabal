@@ -4,11 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           calcite
+name:           neon
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/Innf107/calcite#readme>
-homepage:       https://github.com/Innf107/calcite#readme
-bug-reports:    https://github.com/Innf107/calcite/issues
+description:    Please see the README on GitHub at <https://github.com/Innf107/neon#readme>
+homepage:       https://github.com/Innf107/neon#readme
+bug-reports:    https://github.com/Innf107/neon/issues
 author:         Finn Schneider
 maintainer:     finn@famschneider.info
 copyright:      2021 Finn Schneider
@@ -17,29 +17,28 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    ChangeLog.md
 
 source-repository head
   type: git
-  location: https://github.com/Innf107/calcite
+  location: https://github.com/Innf107/neon
 
 library
   exposed-modules:
-      Calcite.CalciteToMIR
-      Calcite.Config
-      Calcite.Driver
-      Calcite.Lexer
-      Calcite.MIR
-      Calcite.MIRToMC
-      Calcite.Packager
-      Calcite.Parser
-      Calcite.Prelude
-      Calcite.Pretty
-      Calcite.Rename
-      Calcite.Typecheck
-      Calcite.Types.AST
+      Neon.Config
+      Neon.Driver
+      Neon.Lexer
+      Neon.MIR
+      Neon.MIRToMC
+      Neon.NeonToMIR
+      Neon.Packager
+      Neon.Parser
+      Neon.Prelude
+      Neon.Pretty
+      Neon.Rename
+      Neon.Syntax
+      Neon.Typecheck
   other-modules:
-      Paths_calcite
+      Paths_neon
   hs-source-dirs:
       src
   default-extensions:
@@ -110,10 +109,10 @@ library
     , zip-archive
   default-language: Haskell2010
 
-executable calc
+executable neonc
   main-is: Main.hs
   other-modules:
-      Paths_calcite
+      Paths_neon
   hs-source-dirs:
       app
   default-extensions:
@@ -172,9 +171,9 @@ executable calc
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , calcite
     , containers
     , dlist
+    , neon
     , parsec
     , polysemy
     , polysemy-plugin
@@ -185,11 +184,11 @@ executable calc
     , zip-archive
   default-language: Haskell2010
 
-test-suite calcite-test
+test-suite neon-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_calcite
+      Paths_neon
   hs-source-dirs:
       test
   default-extensions:
@@ -248,9 +247,9 @@ test-suite calcite-test
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , calcite
     , containers
     , dlist
+    , neon
     , parsec
     , polysemy
     , polysemy-plugin

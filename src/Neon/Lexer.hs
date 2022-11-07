@@ -1,10 +1,10 @@
-module Calcite.Lexer (
+module Neon.Lexer (
     Token (..)
 ,   LexicalError (..)
 ,   lex
 ) where
 
-import Calcite.Prelude hiding ((:>))
+import Neon.Prelude hiding ((:>))
 
 import Data.Text qualified as T
 import Text.Builder qualified as B

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Calcite.Prelude (
+module Neon.Prelude (
     module Export
 ,   HSType
 ,   state

@@ -1,8 +1,8 @@
-module Calcite.Types.AST where
+module Neon.Syntax where
 
-import Calcite.Prelude
+import Neon.Prelude
 import Text.Show qualified as S
-import Calcite.Pretty
+import Neon.Pretty
 
 data Pass = Parsed | Renamed | Typed
 

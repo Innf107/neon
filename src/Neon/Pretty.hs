@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskellQuotes, TemplateHaskell #-}
-module Calcite.Pretty where
+module Neon.Pretty where
 
 -- TODO: Move to GADT syntax
 
-import Calcite.Prelude
+import Neon.Prelude
 import GHC.TypeLits (Symbol)
 
 import Language.Haskell.TH
