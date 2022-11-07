@@ -1,7 +1,7 @@
 module Calcite.MIRToMC where
 
 import Calcite.Prelude
-import Calcite.Types.AST (Name (..))
+import Calcite.Types.AST (Name (..), renderNameNoPrefix, renderName)
 
 import Calcite.MIR as MIR
 
@@ -45,8 +45,9 @@ compileDef = \case
         let funInfo = FunctionInfo { funName, argCount, localShapes, returnShape }
         let Body { blocks } = body
         runReader funInfo 
-            $ traverse_ (\(blockIndex, u) -> compileBlock (BasicBlock {blockIndex}) u) 
-            $ IntMap.toList blocks
+            $ traverseWithIndex (\blockIndex u -> compileBlock (BasicBlock {blockIndex}) u) 
+            $ blocks
+        pure ()
 
 compileBlock :: Members '[State LowerState, Reader FunctionInfo] r 
              => BasicBlock
@@ -72,7 +73,7 @@ compileAssign :: Members '[State LowerState, Reader FunctionInfo, State PartialM
               -> RValue 
               -> Sem r ()
 compileAssign place rvalue = case place of
-    VarPlace local -> do
+    LocalPlace local -> do
         shape <- localShape local        
         case shape of
             Number -> do
@@ -101,7 +102,7 @@ assignToScore score rvalue = do
         Use (Copy place) -> case place of
             ReturnPlace -> error $ "MIRToMC.assignToScore: Trying to assign from return place to numeric score '" <> score <> "'"
             WildCardPlace -> error $ "MIRToMC.assignToScore: Trying to assign from wildcard place to numeric score '" <> score <> "'"
-            VarPlace local -> do
+            LocalPlace local -> do
                 localScore <- localToScore local
                 emitCommands ["scoreboard players operation " <> score <> " calcite = " <> localScore <> " calcite"]
         BinOp op bo op' -> undefined
@@ -115,16 +116,16 @@ compileTerminator partialFun = \case
     Return -> pure partialFun -- Returns are implicit in mcfunctions
     Call funName args returnPlace continuationBlock -> do
         -- Args are passed as the first n locals
-        (partialFun, _) <- runState partialFun $ forM_ @_ @(Sem (State PartialMCFun : r)) (List.zip [0..] (toList args)) \(i, operand) -> do
+        (partialFun, _) <- runState partialFun $ args & traverseWithIndex \i operand -> do
             -- TODO: Do something about other shapes and get the relevant shape in the first place
             case operand of
                 Literal (IntLit n) -> 
-                    emitCommands ["scoreboard players set " <> localInFun i funName <> " calcite " <> show n]
+                    emitCommands ["scoreboard players set " <> localInFun (Local i Nothing) funName <> " calcite " <> show n]
                 Literal UnitLit -> undefined
                 Copy place -> case place of
-                    VarPlace local -> do
+                    LocalPlace local -> do
                         localScore <- localToScore local 
-                        emitCommands ["scoreboard players operation " <> localInFun i funName <> " calcite = " <> localScore <> " calcite"]
+                        emitCommands ["scoreboard players operation " <> localInFun (Local i Nothing) funName <> " calcite = " <> localScore <> " calcite"]
                     ReturnPlace -> error $ "MIRToMC.compileTerminator: Trying to assign from return place"
                     WildCardPlace -> error $ "MIRToMC.compileTerminator: Trying to assign from wildcard place"
         
@@ -136,7 +137,7 @@ compileTerminator partialFun = \case
             -- TODO: Would be nice to avoid some of the duplication between this and compileAssign
             Number -> do
                 case returnPlace of
-                    VarPlace n -> do
+                    LocalPlace n -> do
                         score <- localToScore n
                         pure (addCommands ["scoreboard players operation " <> score <> " calcite = " <> returnScoreForFun funName <> " calcite"] partialFun)
                     ReturnPlace -> do
@@ -153,19 +154,16 @@ compileTerminator partialFun = \case
 blockFunPath :: Members '[Reader FunctionInfo] r => Bool -> BasicBlock -> Sem r FilePath
 blockFunPath includePrefix (BasicBlock { blockIndex }) = do
     FunctionInfo { funName } <- ask
-    let Name {originalName, nameIndex } = funName
+    let Name { nameIndex } = funName
     let funPrefix = 
             if includePrefix then 
-                show funName
+                renderName funName
             else
-                if nameIndex == 0 then 
-                    originalName
-                else 
-                    originalName <> "_" <> show nameIndex
+                renderNameNoPrefix funName
     if blockIndex == 0 then
         pure $ toString funPrefix
     else
-        pure $ toString $ funPrefix <> "_bb" <> show nameIndex
+        pure $ toString $ funPrefix <> "_bb" <> show blockIndex
 
 data PartialMCFun = PartialMCFun {
     path :: FilePath
@@ -193,13 +191,13 @@ data FunctionInfo = FunctionInfo {
     ,   returnShape :: Shape
     }
 
-localShape :: Members '[Reader FunctionInfo] r => Int -> Sem r Shape
-localShape i = asks (\FunctionInfo { localShapes } -> index localShapes i)
+localShape :: Members '[Reader FunctionInfo] r => Local -> Sem r Shape
+localShape Local { localIx } = asks (\FunctionInfo { localShapes } -> index localShapes localIx)
 
-localInFun :: Int -> Name -> Text
-localInFun local funName = show funName <> "-" <> show local
+localInFun :: Local -> Name -> Text
+localInFun Local { localIx } funName = show funName <> "-" <> show localIx
 
-localToScore :: Members '[Reader FunctionInfo] r => Int -> Sem r Text
+localToScore :: Members '[Reader FunctionInfo] r => Local -> Sem r Text
 localToScore local = do
     FunctionInfo { funName } <- ask
     pure (localInFun local funName)

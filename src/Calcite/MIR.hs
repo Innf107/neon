@@ -12,6 +12,7 @@ module Calcite.MIR (
     Literal (..),
     BinOp (..),
     Shape (..),
+    Local (..),
 
     PartialBlockData (..),
     emptyBlockData,
@@ -23,9 +24,10 @@ import Calcite.Prelude
 
 import Calcite.Pretty
 
-import Calcite.Types.AST (Name) -- Ugh
+import Calcite.Types.AST (Name, renderNameNoPrefix, renderName) -- Ugh
 import Data.Unique
 import Data.IntMap qualified as IntMap
+import Calcite.Config (Config(..), getConfig)
 
 {- | The Shape is effectively the 'type' of LIR expressions.
  This is not a traditional nominal type, but more about the, well, shape
@@ -45,12 +47,12 @@ instance Pretty [Def] where
     pretty defs = intercalate "\n\n" (map pretty defs)
 
 data Body = Body {
-    blocks :: IntMap BasicBlockData
+    blocks :: Seq BasicBlockData
 }
 
 instance Pretty Body where
     pretty Body {blocks} =
-        intercalate "\n\n" (fmap (\(i, block) -> "_bb" <> show i <> ":\n" <> pretty block) $ IntMap.toList blocks)
+        intercalate "\n\n" (toList $ mapWithIndex (\i block -> "_bb" <> show i <> ":\n" <> pretty block) $ blocks)
 
 -- A block is represented as an index into the function's block map.
 -- This makes it possible to compare blocks for 'reference' equality
@@ -101,11 +103,28 @@ data Terminator where
         , target :: BasicBlock
         } -> PrettyAnn "$2 := $0($1*', ') -> $3" Terminator
 
--- In LIR, expressions are only simple pure operations and all non-trivial / expensive
--- computations happen in statements.
+
+data Local = Local {
+    localIx :: Int
+    -- localName is 'Just somename' iff this local was derived from a user-written variable.
+    -- IMPORTANT: localName exists exclusively for debug information. Two locals with the same
+    -- ix but different names will always behave the same way (except when displayed).
+,   localName :: Maybe Name
+}
+instance Eq Local where (==) = (==) `on` localIx
+instance Ord Local where compare = compare `on` localIx
+instance Pretty Local where
+    pretty (Local ix Nothing) = "_" <> show ix
+    pretty (Local ix (Just name)) =
+        let Config { printLocalPrefix } = getConfig () in
+        if printLocalPrefix then
+            renderName name <> "_" <> show ix
+        else
+            renderNameNoPrefix name <> "_" <> show ix
+
 
 data Place where
-    VarPlace      :: Int -> (PrettyAnn "_$0" Place)
+    LocalPlace    :: Local -> (PrettyAnn "$0" Place)
     ReturnPlace   :: PrettyAnn "_ret" Place
     WildCardPlace :: PrettyAnn "_" Place
 

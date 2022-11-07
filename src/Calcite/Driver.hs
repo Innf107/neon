@@ -22,8 +22,6 @@ import Calcite.Config
 
 import Text.Parsec (parse, ParseError)
 
-import Language.McFunction.Types
-
 data CompilerError = LexicalError LexicalError
                    | ParseError ParseError
                    | RenameError RenameError

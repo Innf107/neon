@@ -36,9 +36,7 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
 
     let FunState { localShapes, blockData } = state
 
-    let blocks = IntMap.fromList (List.zip [0..] (toList blockData))
-
-    pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks })
+    pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks=blockData })
 
 compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r ()
 compileStatements currentBlock = \case 
@@ -49,7 +47,7 @@ compileStatements currentBlock = \case
         pure ()
     DefVar () varName expr :<| statements -> do
         local <- newLocal varName (shapeForType (getType expr))
-        runError (compileExprTo (VarPlace local) currentBlock expr) >>= \case
+        runError (compileExprTo (LocalPlace local) currentBlock expr) >>= \case
             Left info -> do
                 output (UnreachableCode info)
             Right nextBlock -> 
@@ -69,15 +67,15 @@ compileExprTo targetPlace currentBlock = \case
         pure block
     Var _ty varName -> do
         (varLocal, _varShape) <- localForVar varName
-        let block = addStatements [MIR.Assign targetPlace (Use (Copy (VarPlace varLocal)))] currentBlock
+        let block = addStatements [MIR.Assign targetPlace (Use (Copy (LocalPlace varLocal)))] currentBlock
         pure block
     FCall _ty funName argExprs -> do
         exprsWithLocals <- traverse (\expr -> (, expr) <$> newAnonymousLocal (shapeForType (getType expr))) argExprs
-        block <- foldrM (\(local, expr) block -> compileExprTo (VarPlace local) block expr) currentBlock exprsWithLocals
+        block <- foldrM (\(local, expr) block -> compileExprTo (LocalPlace local) block expr) currentBlock exprsWithLocals
         nextBlock <- reserveBlock 1
         let terminator = Call {
                     callFun = funName
-                ,   callArgs = fmap (\(local, _) -> Copy (VarPlace local)) (fromList exprsWithLocals)
+                ,   callArgs = fmap (\(local, _) -> Copy (LocalPlace local)) (fromList exprsWithLocals)
                 ,   destinationPlace = targetPlace
                 ,   target = nextBlock
                 }
@@ -90,29 +88,29 @@ compileExprTo targetPlace currentBlock = \case
         _ <- addBlock $ finishBlock MIR.Return lastBlock
         throw ReturnDivergence
 
-newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Int
+newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Local
 newAnonymousLocal shape = state (\s@FunState{nextLocal, localShapes} -> 
-    ( nextLocal
+    ( Local { localIx = nextLocal, localName = Nothing }
     , s { nextLocal = nextLocal + 1
         , localShapes = localShapes |> shape
         }))
 
-newLocal :: Members '[State FunState] r => Name -> Shape -> Sem r Int
+newLocal :: Members '[State FunState] r => Name -> Shape -> Sem r Local
 newLocal name shape = state (\s@FunState{nameLocals, nextLocal, localShapes} -> 
-    ( nextLocal
+    ( Local { localIx = nextLocal, localName = Just name }
     , s { nameLocals = insert name nextLocal nameLocals
         , nextLocal = nextLocal + 1
         , localShapes = localShapes |> shape
         }))
 
-localForVar :: Members '[State FunState] r => Name -> Sem r (Int, Shape)
+localForVar :: Members '[State FunState] r => Name -> Sem r (Local, Shape)
 localForVar name = do
     FunState { nameLocals, localShapes } <- get
     let local = case lookup name nameLocals of
             Just local -> local
             Nothing -> error $ "CalciteToMIR.localForVar: Invalid local variable '" <> show name <> "'. There is no local associated with this variable!"
     let shape = index localShapes local
-    pure (local, shape)
+    pure (Local { localIx = local, localName = Just name }, shape)
 
 addBlock :: Members '[State FunState] r => BasicBlockData -> Sem r BasicBlock
 addBlock newBlock = state (\s@FunState { blockData } -> 

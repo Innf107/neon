@@ -30,11 +30,11 @@ tcDecl (DefFunction () f xs sts (Just (retExp, retTy))) = do
     insertType f (FunT (map snd xs) retTy)
     traverse_ (uncurry insertType) xs
     
+    sts' <- traverse tcStmnt sts
+
     retExp' <- tcExpr retExp
     let retExpTy = getType retExp'
     when (not (retExpTy `subTypeOf` retTy)) $ throw $ WrongFunctionReturn f retTy retExpTy
-
-    sts' <- traverse tcStmnt sts
 
     pure $ DefFunction () f xs sts' (Just (retExp', retTy))
 tcDecl (DefFunction () f xs sts Nothing) = do
@@ -45,7 +45,10 @@ tcDecl (DefFunction () f xs sts Nothing) = do
 
 
 tcStmnt :: Members '[State TCState, Error TypeError] r => Statement Renamed -> Sem r (Statement Typed)
-tcStmnt (DefVar () x e) = DefVar () x <$> tcExpr e
+tcStmnt (DefVar () x e) = do
+    e' <- tcExpr e
+    insertType x (getType e')
+    pure $ DefVar () x e'
 tcStmnt (Perform () e)  = Perform () <$> tcExpr e
 
 subTypeOf :: Type -> Type -> Bool

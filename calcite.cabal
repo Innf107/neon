@@ -38,8 +38,6 @@ library
       Calcite.Rename
       Calcite.Typecheck
       Calcite.Types.AST
-      Language.McFunction.PrettyPrint
-      Language.McFunction.Types
   other-modules:
       Paths_calcite
   hs-source-dirs:

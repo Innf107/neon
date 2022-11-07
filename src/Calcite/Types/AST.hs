@@ -45,8 +45,11 @@ data Name = Name {
 instance Pretty Name where pretty = show
 
 renderName :: Name -> Text
-renderName (Name originalName nameSource 0) = nameSource <> ":" <> originalName
-renderName (Name originalName nameSource nameIndex) = nameSource <> ":" <> originalName <> "_" <> show nameIndex
+renderName name@(Name _ nameSource _) = nameSource <> ":" <> renderNameNoPrefix name
+
+renderNameNoPrefix :: Name -> Text
+renderNameNoPrefix (Name originalName _nameSource 0) = originalName
+renderNameNoPrefix (Name originalName _nameSource nameIndex) = originalName <> "_" <> show nameIndex
 
 instance Show Name where
     show = toString . renderName

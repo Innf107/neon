@@ -4,20 +4,22 @@ import Calcite.Prelude
 
 import Calcite.Driver
 import Calcite.Packager
-import Language.McFunction.Types (CompiledModule)
-import Language.McFunction.PrettyPrint
 
 import System.Environment (getArgs)
 
 import Data.Text qualified as Text
-import Calcite.Config (modifyConfig, Config (..))
+import Calcite.Config (modifyConfig, Config (..), getConfig)
+
+import Codec.Archive.Zip (fromArchive)
 
 usage :: Text
 usage = unlines [
         "usage: calc [OPTIONS] <FILE>"
     ,   ""
     ,   "OPTIONS"
-    ,   "--print-mir          Print the mid level IR for debugging purposes"
+    ,   "--print-mir            Print the mid level IR for debugging purposes"
+    ,   "--print-mc             Print the generated minecraft functions for debugging purposes"
+    ,   "--print-local-prefix   Include a prefix consisting of module and function name in locals"
     ]
 failUsage :: Text -> IO a
 failUsage message = putTextLn (message <> "\n\n" <> usage) >> exitFailure
@@ -33,18 +35,21 @@ main = do
         [] -> failUsage "Missing required argument"
         _ -> failUsage "Too many arguments"
     content <- readFileText (toString file)
-    result <- runM $ runError $ runOutputStdout prettyLowerWarning $ compileToMC (fromMaybe file $ Text.stripSuffix ".cal" file) content
+    let name = fromMaybe file $ Text.stripSuffix ".cal" file
+    result <- runM $ runError $ runOutputStdout prettyLowerWarning $ compileToMC name content
     case result of
         Left e          -> print e
-        Right mcmods    -> do 
-            mapM_ printMod mcmods 
-            -- TODO: We cannot fully compile to a datapack right now
-    where
-        printMod :: (FilePath, Text) -> IO ()
-        printMod (name, commands) = do
-            putStrLn name
-            putTextLn commands
-            putTextLn ""
+        Right mcfuns    -> do
+            let Config { printMc } = getConfig ()
+            when printMc $ mapM_ printFun mcfuns
+            let archive = datapackToZip name mcfuns
+            writeFileLBS (toString name <> ".zip") (fromArchive archive)
+                where
+                    printFun :: (FilePath, Text) -> IO ()
+                    printFun (name, commands) = do
+                        putStrLn name
+                        putTextLn commands
+                        putTextLn ""
 
 parseArgs :: IO [Text]
 parseArgs = getArgs >>= go
@@ -52,6 +57,12 @@ parseArgs = getArgs >>= go
         go [] = pure []
         go ("--print-mir" : args) = do
             modifyConfig (\config -> config{printLir = True})
+            go args
+        go ("--print-mc" : args) = do
+            modifyConfig (\config -> config{printMc = True})
+            go args
+        go ("--print-local-prefix" : args) = do
+            modifyConfig (\config -> config{printLocalPrefix = True})
             go args
         go ((toText -> arg) : args)
             | "-" `Text.isPrefixOf` arg = failUsage $ "Invalid flag '" <> arg <> "'"

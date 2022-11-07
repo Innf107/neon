@@ -6,11 +6,15 @@ import System.IO.Unsafe
 
 data Config = Config {
     printLir :: Bool
+,   printMc :: Bool
+,   printLocalPrefix :: Bool
 }
 
 defaultConfig :: Config
 defaultConfig = Config {
     printLir = False
+,   printMc = False
+,   printLocalPrefix = False
 }
 
 configRef :: IORef Config

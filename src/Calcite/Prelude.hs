@@ -56,7 +56,7 @@ import Relude as Export hiding (
 import Relude.Extra as Export
 import Polysemy as Export
 import Polysemy.Error as Export
-import Polysemy.Reader as Export
+import Polysemy.Reader as Export hiding (Local)
 import Polysemy.State as Export
 import Polysemy.Output as Export
 
