@@ -93,6 +93,7 @@ instance Pretty BasicBlockData where
 data Terminator where
     -- | This block has a single successor. Execution directly continues there
     Goto :: BasicBlock -> (PrettyAnn "goto -> $0" Terminator)
+    -- | "I'll be back"
     Return :: (PrettyAnn "return" Terminator)
     -- | Call a function (currently represented by its name due to the lack of first-class functions) 
     -- with a 'target' block to continue in with the result.

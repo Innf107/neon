@@ -35,7 +35,7 @@ main = do
         [] -> failUsage "Missing required argument"
         _ -> failUsage "Too many arguments"
     content <- readFileText (toString file)
-    let name = fromMaybe file $ Text.stripSuffix ".cal" file
+    let name = fromMaybe file $ Text.stripSuffix ".neon" file
     result <- runM $ runError $ runOutputStdout prettyLowerWarning $ compileToMC name content
     case result of
         Left e          -> print e
