@@ -137,7 +137,10 @@ placeAsScoreRValue = \case
     LocalPlace local -> localToScore local
                 
 
-compileTerminator :: forall r. Members '[State LowerState, Reader FunctionInfo] r => PartialMCFun -> Terminator -> Sem r PartialMCFun
+compileTerminator :: forall r. Members '[State LowerState, Reader FunctionInfo] r 
+                  => PartialMCFun 
+                  -> Terminator 
+                  -> Sem r PartialMCFun
 compileTerminator partialFun = \case
     Goto bb -> do
         blockPath <- blockFunPath True bb
@@ -175,7 +178,15 @@ compileTerminator partialFun = \case
 
         continuationPath <- blockFunPath True continuationBlock
         pure $ addCommands ["call " <> toText continuationPath] partialFun
-
+    CaseNumber operand branches -> do
+        case operand of
+            Literal l -> undefined
+            Copy place -> do
+                placeScore <- placeAsScoreRValue place
+                commands <- forM branches \(i, block) -> do
+                    blockFun <- blockFunPath True block
+                    pure $ "execute if score " <> placeScore <> " neon matches " <> show i <> " run function " <> toText blockFun
+                pure $ addCommands commands partialFun
 
 blockFunPath :: Members '[Reader FunctionInfo] r => Bool -> BasicBlock -> Sem r FilePath
 blockFunPath includePrefix (BasicBlock { blockIndex }) = do

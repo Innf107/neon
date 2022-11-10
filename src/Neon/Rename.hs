@@ -126,5 +126,12 @@ renameExpr env (ExprBlock () statements retExpr) = do
     (statements', innerEnv) <- renameStatements env (toList statements)
     retExpr' <- renameExpr innerEnv retExpr
     pure (ExprBlock () (fromList statements') retExpr')
-
+renameExpr env (If () condition thenBranch elseBranch) = do
+    If () 
+        <$> renameExpr env condition
+        -- TODO: Variables with the same name in different branches might end up
+        -- with the same renamed name. I'm not sure if this is an issue per se,
+        -- but it is definitely something to be aware of.
+        <*> renameExpr env thenBranch
+        <*> renameExpr env elseBranch
 

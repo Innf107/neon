@@ -5,14 +5,16 @@ import Neon.Prelude
 import System.IO.Unsafe
 
 data Config = Config {
-    printLir :: Bool
+    printTokens :: Bool
+,   printMir :: Bool
 ,   printMc :: Bool
 ,   printLocalPrefix :: Bool
 }
 
 defaultConfig :: Config
 defaultConfig = Config {
-    printLir = False
+    printTokens = False
+,   printMir = False
 ,   printMc = False
 ,   printLocalPrefix = False
 }

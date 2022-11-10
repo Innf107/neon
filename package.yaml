@@ -30,6 +30,8 @@ dependencies:
 - zip-archive
 - dlist
 - template-haskell
+# dependency for happy
+- array
 
 library:
   source-dirs: src

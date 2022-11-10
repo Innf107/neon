@@ -17,6 +17,7 @@ usage = unlines [
         "usage: neonc [OPTIONS] <FILE>"
     ,   ""
     ,   "OPTIONS"
+    ,   "--print-tokens         Print the input tokens for debugging purposes"
     ,   "--print-mir            Print the mid level IR for debugging purposes"
     ,   "--print-mc             Print the generated minecraft functions for debugging purposes"
     ,   "--print-local-prefix   Include a prefix consisting of module and function name in locals"
@@ -55,8 +56,11 @@ parseArgs :: IO [Text]
 parseArgs = getArgs >>= go
     where
         go [] = pure []
+        go ("--print-tokens" : args) = do
+            modifyConfig (\config -> config{printTokens = True})
+            go args
         go ("--print-mir" : args) = do
-            modifyConfig (\config -> config{printLir = True})
+            modifyConfig (\config -> config{printMir = True})
             go args
         go ("--print-mc" : args) = do
             modifyConfig (\config -> config{printMc = True})

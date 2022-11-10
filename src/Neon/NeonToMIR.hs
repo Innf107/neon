@@ -105,6 +105,9 @@ compileExprTo targetPlace currentBlock = \case
             -- The block diverges in all branches, so this expression necessarily diverges
             Nothing -> throw ReturnDivergence
             Just lastBlock -> compileExprTo targetPlace lastBlock retExpr
+    C.If _ty condition thenBranch elseBranch -> do
+        
+        undefined
 
 newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Local
 newAnonymousLocal shape = state (\s@FunState{nextLocal, localShapes} -> 

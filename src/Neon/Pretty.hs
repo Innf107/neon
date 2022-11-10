@@ -12,7 +12,9 @@ import Prelude qualified
 import Data.List qualified as List
 import Data.Char (isDigit)
 
-type PrettyAnn (s :: Symbol) a = a
+type PrettyAnn (s :: k) a = a
+
+data PrettyVia (a :: k)
 
 class Pretty a where
     pretty :: a -> Text
@@ -44,19 +46,22 @@ makePretty ty = do
 
                     pure (Match pat (NormalB expr) [])
             let goGADT conName argTys retTy = do
-                    template <- case retTy of
+                    templateOrFun <- case retTy of
                         (AppT (AppT (ConT annCon) (LitT (StrTyLit template))) _)
-                            | annCon == ''PrettyAnn -> pure template
+                            | annCon == ''PrettyAnn -> pure (Left template)
+                        (AppT (AppT (ConT annCon) (AppT (ConT prettyViaCon) (LitT (StrTyLit fun)))) _)
+                            | annCon == ''PrettyAnn && prettyViaCon == ''PrettyVia -> pure (Right fun)
                         _ -> fail "For makePretty to work, all GADT data constructors need return a type of the form `PrettyAnn \"something\" t`"
-                    
+
                     -- This includes an underscore so that the argument can be ignored without generating a warning
                     names <- traverse (\_ -> newName "_x") argTys
                     
-                    expr <- replaceTemplateNames template names
-
+                    expr <- case templateOrFun of
+                        Left template -> replaceTemplateNames template names
+                        Right fun -> pure$ foldl' (\exp name -> AppE exp (VarE name)) (VarE (mkName fun)) names
                     let pat = ConP conName (map VarP names)
-
                     pure (Match pat (NormalB expr) [])
+
             matches :: [Match] <- forM cons \case            
                 NormalC conName argBangTys -> go conName (map snd argBangTys) -- Why does Haskell not have or patterns?
                 RecC conName varBangTys -> go conName (map (\(_, _, ty) -> ty) varBangTys)

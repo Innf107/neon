@@ -88,3 +88,7 @@ tcExpr (ExprBlock () statements retExpr) = do
     statements' <- traverse tcStmnt statements
     retExpr' <- tcExpr retExpr
     pure (ExprBlock () statements' retExpr')
+tcExpr (If () condition thenBranch elseBranch) = do
+    condition' <- tcExpr condition
+    unless (getType condition' `subTypeOf` undefined) $ undefined
+    undefined

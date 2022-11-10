@@ -32,9 +32,11 @@ library
       Neon.NeonToMIR
       Neon.Packager
       Neon.Parser
+      Neon.Parser.Util
       Neon.Prelude
       Neon.Pretty
       Neon.Rename
+      Neon.Span
       Neon.Syntax
       Neon.Typecheck
   other-modules:
@@ -96,7 +98,8 @@ library
       OverloadedLists
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors
   build-depends:
-      base >=4.7 && <5
+      array
+    , base >=4.7 && <5
     , containers
     , dlist
     , parsec
@@ -170,7 +173,8 @@ executable neonc
       OverloadedLists
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array
+    , base >=4.7 && <5
     , containers
     , dlist
     , neon
@@ -246,7 +250,8 @@ test-suite neon-test
       OverloadedLists
   ghc-options: -fplugin=Polysemy.Plugin -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-imports -Wno-unticked-promoted-constructors -Wno-name-shadowing -Wredundant-constraints -Werror=incomplete-patterns -Werror=incomplete-record-updates -Werror=missing-fields -freverse-errors -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array
+    , base >=4.7 && <5
     , containers
     , dlist
     , neon

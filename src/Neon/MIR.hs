@@ -103,7 +103,13 @@ data Terminator where
         , destinationPlace :: Place
         , target :: BasicBlock
         } -> PrettyAnn "$2 := $0($1*', ') -> $3" Terminator
+    CaseNumber :: Operand -> Seq (Int, BasicBlock) 
+        -> PrettyAnn (PrettyVia "prettyCaseNumber") Terminator
 
+prettyCaseNumber :: Operand -> Seq (Int, BasicBlock) -> Text
+prettyCaseNumber operand branches = "case " <> pretty operand <> " {" 
+    <> foldMap (\(n, block) -> "\n    " <> pretty n <> " -> " <> pretty block) branches
+    <> "\n}"
 
 data Local = Local {
     localIx :: Int

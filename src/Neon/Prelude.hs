@@ -71,6 +71,8 @@ import Data.Sequence qualified as Seq
 
 import Data.DList as Export (DList)
 
+import Neon.Span as Export
+
 import Relude qualified
 type HSType = Relude.Type
 
