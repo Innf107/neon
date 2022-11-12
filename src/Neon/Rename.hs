@@ -56,7 +56,7 @@ freshLocal env@Env{locals, currentFunctionName} originalName = do
 
 rename :: Members '[Error RenameError] r => ModuleEnv -> [Decl Parsed] -> Sem r [Decl Renamed]
 rename _ [] = pure []
-rename modEnv (DefFunction () originalFunName params bodyStatements mReturnClause : decls) = do
+rename modEnv (DefFunction () originalFunName params retTy bodyStatements retExpr : decls) = do
     (funName, modEnv') <- newFunction modEnv originalFunName
 
     -- 'innerEnv' is derived from 'modEnv' *without* the definition for the current function since
@@ -73,17 +73,14 @@ rename modEnv (DefFunction () originalFunName params bodyStatements mReturnClaus
 
     (bodyStatements', returnClauseEnv) <- renameStatements innerEnv bodyStatements
 
-    mReturnClause' <- case mReturnClause of
-        Nothing -> pure Nothing
-        Just (retExpr, retTy) -> do
-            -- This doesn't have to do any special treatment around
-            -- (tail) recursive calls, since these use the 'currentFunctionName'
-            -- directly
-            retExpr' <- renameExpr returnClauseEnv retExpr
-            pure $ Just (retExpr', retTy)
+    
+    -- This doesn't have to do any special treatment around
+    -- (tail) recursive calls, since these use the 'currentFunctionName'
+    -- directly
+    retExpr' <- renameExpr returnClauseEnv retExpr
 
     decls' <- rename modEnv' decls
-    pure (DefFunction () funName params' bodyStatements' mReturnClause' : decls')
+    pure (DefFunction () funName params' retTy bodyStatements' retExpr' : decls')
 
 renameStatements :: Members '[Error RenameError] r => Env -> [Statement Parsed] -> Sem r ([Statement Renamed], Env)
 renameStatements env [] = pure ([], env)
@@ -102,6 +99,7 @@ renameStatements env (Perform () expr : statements) = do
 
 renameExpr :: Members '[Error RenameError] r => Env -> Expr Parsed -> Sem r (Expr Renamed)
 renameExpr _ (IntLit () i) = pure (IntLit () i)
+renameExpr _ (UnitLit ()) = pure (UnitLit ())
 renameExpr Env{locals} (Var () originalName) =
     case lookup originalName locals of
         Nothing -> throw $ UnboundVar originalName

@@ -25,6 +25,7 @@ data TokenClass
     | COLON
     | COMMA
     | INT -- TODO: Maybe int shouldn't be a keyword?
+    | BOOL
     | RETURN
     | SEMI
     | PLUS
@@ -41,7 +42,7 @@ data LexState = Default
               | InLineComment
 
 reserved :: Map Text TokenClass
-reserved = [("let", LET), ("if", IF), ("else", ELSE), ("int", INT), ("return", RETURN)]
+reserved = [("let", LET), ("if", IF), ("else", ELSE), ("int", INT), ("bool", BOOL), ("return", RETURN)]
 
 inc :: Span -> Span
 inc span@UnsafeMkSpan{endCol} = span{endCol = endCol + 1}

@@ -35,9 +35,9 @@ compileToMC name code = do
 
     let syntax = Parser.parse tokens
     renamed <- mapError RenameError $ rename (emptyModuleEnv name) syntax
-    typed <- mapError TypeError $ evalState (TCState mempty) $ typecheck renamed
+    typed <- mapError TypeError $ typecheckDecls (fromList renamed)
 
-    mir <- NeonToMIR.compile typed
+    mir <- NeonToMIR.compile (toList typed)
     when printMir $ putTextLn $ pretty mir
 
     MIRToMC.compile mir 

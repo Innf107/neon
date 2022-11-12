@@ -18,7 +18,7 @@ compile :: Members '[Output LowerWarning] r => [C.Decl Typed] -> Sem r [MIR.Def]
 compile = traverse compileDecl
 
 compileDecl :: Members '[Output LowerWarning] r => C.Decl Typed -> Sem r MIR.Def
-compileDecl (C.DefFunction () funName params statements mreturn) = do
+compileDecl (C.DefFunction () funName params retTy statements retExpr) = do
     let paramShapes = map (shapeForType . snd) params
     let funState =
             FunState
@@ -28,9 +28,8 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
                 , blockData = []
                 }
 
-    (statements, returnShape) <- pure $ case mreturn of
-            Nothing -> (fromList statements, Number) -- TODO: Shape for Unit
-            Just (retExp, ty) -> (fromList statements |> Perform () (C.Return () retExp), shapeForType ty)
+    statements <- pure $ fromList statements |> Perform () (C.Return () retExpr)
+    let returnShape = shapeForType retTy
 
     (state, ()) <- runState funState $ do
         mlastBlock <- compileStatements emptyBlockData statements
@@ -38,7 +37,7 @@ compileDecl (C.DefFunction () funName params statements mreturn) = do
             Nothing -> pure ()
             Just lastBlock -> void $ addBlock 
                 $ finishBlock MIR.Return 
-                $ addStatements [Assign ReturnPlace (Use (Literal UnitLit))] lastBlock
+                $ addStatements [Assign ReturnPlace (Use (Literal MIR.UnitLit))] lastBlock
     
     let FunState { localShapes, blockData } = state
 
@@ -72,6 +71,9 @@ compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWar
 compileExprTo targetPlace currentBlock = \case
     C.IntLit () n -> do
         let block = addStatements [MIR.Assign targetPlace (Use (Literal (MIR.IntLit n)))] currentBlock
+        pure block
+    C.UnitLit () -> do
+        let block = addStatements [MIR.Assign targetPlace (Use (Literal (MIR.UnitLit)))] currentBlock
         pure block
     Var _ty varName -> do
         (varLocal, _varShape) <- localForVar varName
@@ -153,7 +155,7 @@ data FunState = FunState
     }
 
 shapeForType :: Type -> Shape
-shapeForType IntT = Number -- We only support numbers for now
-shapeForType (FunT _ _) = Number -- TODO: I honestly don't think these should be *types*, since locals can never have these
-shapeForType (ProcT _) = Number --  ^
+shapeForType IntT = Number
+shapeForType BoolT = Number -- Booleans are desugared into numeric shapes. Maybe we should include some information in mir, so that we know checking for 0 and 1 is exhaustive?
+shapeForType UnitT = Number -- TODO: This should be something zero sized, ideally something like `TupleShape []`
 shapeForType NeverT = Number -- TODO: This should probably be zero sized? It's never going to be used anyway. Maybe we should just have a never shape?

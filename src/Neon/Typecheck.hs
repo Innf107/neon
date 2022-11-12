@@ -4,91 +4,147 @@ import Neon.Prelude
 import Neon.Syntax
 
 -- Whenever two types are given, the first one was 'expected', while the second was 'provided'.
-data TypeError = WrongFunctionReturn Name Type Type 
-               | NonFunctionCall Name Type
-               | WrongNumberOfParams Name [Type] [Type]
-               | MismatchedParameter Name Type Type
-               | MismatchedOpParameters BinOp Type Type
+data TypeError = NotASubType Type Type
+               | WrongNumberOfArgs Name Int Int
                deriving Show
 
-data TCState = TCState {
-    varTypes :: Map Name Type
+data FunType = MkFunType (Seq Type) Type
+
+data TCDeclEnv = TCDeclEnv {
+    funTypes :: Map Name FunType
 }
 
-insertType :: Members '[State TCState] r => Name -> Type -> Sem r ()
-insertType x t = modify (\s -> s{varTypes = insert x t (varTypes s)})
+emptyTCDeclEnv :: TCDeclEnv
+emptyTCDeclEnv = TCDeclEnv {
+    funTypes = mempty
+}
 
-lookupType :: Members '[State TCState] r => Name -> Sem r Type
-lookupType n = (lookup n <$> gets varTypes) <&> \case
-    Nothing -> error $ "lookupType: No type for variable: " <> show n
-    Just ty -> ty
+data TCEnv = TCEnv {
+    localTypes :: Map Name Type
+}
 
-typecheck :: Members '[State TCState, Error TypeError] r => [Decl Renamed] -> Sem r [Decl Typed]
-typecheck = traverse tcDecl
+emptyTCEnv :: TCEnv
+emptyTCEnv = TCEnv {
+    localTypes = mempty
+}
 
-tcDecl :: Members '[State TCState, Error TypeError] r => Decl Renamed -> Sem r (Decl Typed)
-tcDecl (DefFunction () f xs sts (Just (retExp, retTy))) = do
-    insertType f (FunT (map snd xs) retTy)
-    traverse_ (uncurry insertType) xs
+data EnclosingFunEnv = EnclosingFunEnv {
+    returnType :: Type
+}
+
+typecheckDecls :: Members '[Error TypeError] r => Seq (Decl Renamed) -> Sem r (Seq (Decl Typed))
+typecheckDecls decls = evalState emptyTCDeclEnv $ traverse typecheckDecl decls
+
+insertFunType :: Members '[State TCDeclEnv] r => Name -> FunType -> Sem r ()
+insertFunType funName funType =
+    modify (\s@TCDeclEnv{funTypes} -> s{funTypes = insert funName funType funTypes})
+
+insertLocalType :: Name -> Type -> TCEnv -> TCEnv
+insertLocalType name ty env@TCEnv{localTypes} = env { localTypes = insert name ty localTypes }
     
-    sts' <- traverse tcStmnt sts
 
-    retExp' <- tcExpr retExp
-    let retExpTy = getType retExp'
-    when (not (retExpTy `subTypeOf` retTy)) $ throw $ WrongFunctionReturn f retTy retExpTy
+typecheckDecl :: Members '[Error TypeError, State TCDeclEnv] r
+              => Decl Renamed
+              -> Sem r (Decl Typed)
+typecheckDecl = \case 
+    DefFunction () funName parameters retTy body retExpr -> do
+            
+        let funType = MkFunType (fromList (map snd parameters)) retTy
+        
+        -- We insert the type immediately to allow recursion.
+        insertFunType funName funType
 
-    pure $ DefFunction () f xs sts' (Just (retExp', retTy))
-tcDecl (DefFunction () f xs sts Nothing) = do
-    insertType f (ProcT (map snd xs))
-    traverse_ (uncurry insertType) xs
+        let env = foldr (\(name, ty) env -> insertLocalType name ty env) emptyTCEnv parameters
 
-    DefFunction () f xs <$> traverse tcStmnt sts <*> pure Nothing
+        runReader (EnclosingFunEnv { returnType = retTy }) do
+            (env, body') <- runState env $ traverse typecheckStatement body
+        
+            retExpr' <- check env retTy retExpr
+            pure (DefFunction () funName parameters retTy body' retExpr')
 
 
-tcStmnt :: Members '[State TCState, Error TypeError] r => Statement Renamed -> Sem r (Statement Typed)
-tcStmnt (DefVar () x e) = do
-    e' <- tcExpr e
-    insertType x (getType e')
-    pure $ DefVar () x e'
-tcStmnt (Perform () e)  = Perform () <$> tcExpr e
+typecheckStatement :: Members '[Error TypeError, State TCDeclEnv, State TCEnv, Reader EnclosingFunEnv] r
+                   => Statement Renamed
+                   -> Sem r (Statement Typed)
+typecheckStatement = \case
+    DefVar () varName expr -> do
+        env <- get
+        expr' <- infer env expr
+        modify (insertLocalType varName (getType expr'))
+        pure $ DefVar () varName expr'
+    Perform () expr -> do
+        env <- get
+        Perform () <$> check env UnitT expr 
 
-subTypeOf :: Type -> Type -> Bool
-subTypeOf = (==) -- fine for now, as there are no actual subtypes yet.
+check :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r
+      => TCEnv
+      -> Type
+      -> Expr Renamed
+      -> Sem r (Expr Typed)
+check env ty = \case
+    ExprBlock () statements expr -> do
+        (env, statements') <- runState env $ traverse typecheckStatement statements
+        ExprBlock () statements' <$> check env ty expr
+    If () condition thenBranch elseBranch ->
+        If ty
+        <$> check env BoolT condition
+        <*> check env ty thenBranch
+        <*> check env ty elseBranch
+    expr -> do
+        expr' <- infer env expr
+        subsumes (getType expr') ty
+        pure expr'
 
-tcExpr :: Members '[State TCState, Error TypeError] r => Expr Renamed -> Sem r (Expr Typed)
-tcExpr (IntLit () n) = pure $ IntLit () n
-tcExpr (Var () x) = do
-    ty <- lookupType x
-    pure (Var ty x)
-tcExpr (FCall () f args) = do
-    fty <- lookupType f
-    case fty of
-        FunT tys retTy -> do
-            args' <- traverse tcExpr args
-            let argTys = map getType args'
+infer :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r
+      => TCEnv
+      -> Expr Renamed
+      -> Sem r (Expr Typed)
+infer env = \case
+    IntLit () n -> pure (IntLit () n)
+    UnitLit () -> pure (UnitLit ())
+    Var () varName -> do
+        let ty = case lookup varName (localTypes env) of
+                Nothing -> error $ "Variable not found during type checking: '" <> show varName <> "'"
+                Just ty -> ty
+        pure (Var ty varName)
+    FCall () funName arguments -> do
+        -- We don't need to deal with polymorphism yet, so this is pretty simple.
+        MkFunType argTys resTy <- gets (lookup funName . funTypes) <&> \case
+                Nothing -> error $ "Function not found during type checking: '" <> show funName <> "'"
+                Just ty -> ty
+        when (length arguments /= length argTys) $ throw (WrongNumberOfArgs funName (length argTys) (length arguments))
 
-            when (length args /= length argTys) $ throw $ WrongNumberOfParams f tys argTys
+        arguments' <- zipWithM (\arg argTy -> check env argTy arg) arguments (toList argTys)
+        
+        pure (FCall resTy funName arguments')
+    BinOp () left Add right -> do
+        left' <- check env IntT left
+        right' <- check env IntT right
+        pure (BinOp IntT left' Add right')
+    Return () retExpr -> do
+        EnclosingFunEnv { returnType } <- ask
+        retExpr' <- check env returnType retExpr
+        pure (Return () retExpr')
+    ExprBlock () statements retExpr -> do
+        (env, statements') <- runState env $ traverse typecheckStatement statements
+        retExpr' <- infer env retExpr
+        pure (ExprBlock () statements' retExpr')
+    If () condition thenBranch elseBranch -> do
+        condition' <- check env BoolT condition
+        thenBranch' <- infer env thenBranch
+        elseBranch' <- infer env elseBranch
+        
+        -- We need to make sure that both branches have compatible types, so
+        -- we check that they are mutual subtypes. This is significantly more elegant
+        -- in check mode.
+        subsumes (getType thenBranch') (getType elseBranch')
+        subsumes (getType elseBranch') (getType thenBranch')
+        pure (If (getType thenBranch') condition' thenBranch' elseBranch')
 
-            zipWithM_ checkArgType tys argTys
 
-            pure (FCall retTy f args')
-        _ -> throw $ NonFunctionCall f fty
-        where
-            checkArgType ty argTy = when (not (argTy `subTypeOf` ty)) $ throw $ MismatchedParameter f ty argTy
-tcExpr (BinOp () left Add right) = do
-    left' <- tcExpr left
-    unless (getType left' `subTypeOf` IntT) $ throw $ MismatchedOpParameters Add (getType left') IntT
-    right' <- tcExpr right
-    unless (getType right' `subTypeOf` IntT) $ throw $ MismatchedOpParameters Add (getType right') IntT
-    pure (BinOp IntT left' Add right')
-
-tcExpr (Return () expr) = do
-    undefined
-tcExpr (ExprBlock () statements retExpr) = do
-    statements' <- traverse tcStmnt statements
-    retExpr' <- tcExpr retExpr
-    pure (ExprBlock () statements' retExpr')
-tcExpr (If () condition thenBranch elseBranch) = do
-    condition' <- tcExpr condition
-    unless (getType condition' `subTypeOf` undefined) $ undefined
-    undefined
+-- Makes sure that ty1 is a subtype of ty2
+subsumes :: Members '[Error TypeError] r => Type -> Type -> Sem r ()
+subsumes NeverT _ = pure ()
+subsumes IntT IntT = pure ()
+subsumes UnitT UnitT = pure ()
+subsumes ty1 ty2 = throw (NotASubType ty1 ty2)

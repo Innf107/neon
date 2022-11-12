@@ -8,7 +8,7 @@ data Pass = Parsed | Renamed | Typed
 
 type family XName (p :: Pass)
 
-data Decl (p :: Pass) = DefFunction (XDefFunction p) (XName p) [(XName p, Type)] [Statement p] (Maybe (Expr p, Type))
+data Decl (p :: Pass) = DefFunction (XDefFunction p) (XName p) [(XName p, Type)] Type [Statement p] (Expr p)
 type family XDefFunction (p :: Pass)
 
 data Statement (p :: Pass) 
@@ -20,6 +20,7 @@ type family XDefVar (p :: Pass)
 type family XPerform (p :: Pass)
 
 data Expr (p :: Pass) = IntLit (XIntLit p) Int
+                      | UnitLit (XUnitLit p)
                       | Var (XVar p) (XName p)
                       | FCall (XFCall p) (XName p) [Expr p]
                       | BinOp (XBinOp p) (Expr p) BinOp (Expr p)
@@ -28,6 +29,7 @@ data Expr (p :: Pass) = IntLit (XIntLit p) Int
                       | If (XIf p) (Expr p) (Expr p) (Expr p)
 
 type family XIntLit (p :: Pass)
+type family XUnitLit (p :: Pass)
 type family XVar (p :: Pass)
 type family XFCall (p :: Pass)
 type family XBinOp (p :: Pass)
@@ -38,8 +40,8 @@ type family XIf (p :: Pass)
 data BinOp = Add deriving (Show)
 
 data Type = IntT
-          | FunT [Type] Type
-          | ProcT [Type]
+          | BoolT
+          | UnitT
           -- | A type representing diverging computations (such as 'return').
           -- never is a mutual subtype of every type.
           -- If we get unification later, never will trivially *unify* with every type
@@ -79,6 +81,10 @@ type instance XPerform      Parsed  = ()
 type instance XPerform      Renamed = ()
 type instance XPerform      Typed   = ()
 
+type instance XUnitLit      Parsed  = ()
+type instance XUnitLit      Renamed = ()
+type instance XUnitLit      Typed   = ()
+
 type instance XIntLit       Parsed  = ()
 type instance XIntLit       Renamed = ()
 type instance XIntLit       Typed   = ()
@@ -112,6 +118,7 @@ class HasType t where
 
 instance HasType (Expr Typed) where
     getType IntLit{}  = IntT
+    getType UnitLit{} = UnitT
     getType (Var t _) = t
     getType (FCall t _ _) = t
     getType (BinOp t _ _ _) = t 
@@ -128,8 +135,8 @@ instance Cast a b => Cast [a] [b] where
 
 instance Show Type where
     show IntT        = "int"
-    show (FunT as r) = toString $ "(" <> intercalate ", " (map show as) <> ") -> " <> show r
-    show (ProcT xs)  = toString $ "(" <> intercalate ", " (map show xs) <> ") -> void"
+    show BoolT       = "bool"
+    show UnitT       = "unit"
     show NeverT      = "!"
 
 deriving instance Eq Type

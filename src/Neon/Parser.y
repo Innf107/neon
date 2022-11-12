@@ -4,6 +4,8 @@ module Neon.Parser (parse) where
 
 import Prelude
 
+import Relude (fromMaybe)
+
 import Data.Text (Text)
 
 import Neon.Syntax
@@ -31,6 +33,7 @@ import GHC.Exts (fromList)
 %token ':'              { (Token COLON _) }
 %token ','              { (Token COMMA _) }
 %token int              { (Token INT _) }
+%token bool             { (Token BOOL _) }
 %token return           { (Token RETURN _) }
 %token ';'              { (Token SEMI _) }
 %token '+'              { (Token PLUS _) }
@@ -62,7 +65,8 @@ Decls :: { [Decl Parsed] }
 Decls : many(Decl) { $1 }
 
 Decl :: { Decl Parsed }
-Decl : ident '(' ParameterList ')' maybe(TypeSig) '{' Body '}' { DefFunction () $1 $3 (fst $7) (makeRetExpr (snd $7) $5) }
+Decl : ident '(' ParameterList ')' maybe(TypeSig) '{' Body '}' 
+        { DefFunction () $1 $3 (fromMaybe UnitT $5) (fst $7) (fromMaybe (UnitLit ()) (snd $7)) }
 
 TypeSig : ':' Type { $2 }
 
@@ -81,7 +85,8 @@ Statement : let ident '=' Expr { DefVar () $2 $4 }
           | Expr               { Perform () $1 }
 
 Expr :: { Expr Parsed }
-Expr : intLit                       { IntLit () $1 }
+Expr : '(' Expr ')'                 { $2 }
+     | intLit                       { IntLit () $1 }
      | ident                        { Var () $1 }
      | ident '(' ArgumentList ')'   { FCall () $1 $3 }
      | Expr '+' Expr                { BinOp () $1 Add $3 }
@@ -99,7 +104,9 @@ ArgumentList : Expr ',' ArgumentList    { $1 : $3 }
              |                          { [] }
 
 Type :: { Type }
-Type : int { IntT }
+Type : int     { IntT }
+     | bool    { BoolT }
+     | '(' ')' { UnitT }
 
 
 
