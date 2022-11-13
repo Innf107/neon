@@ -149,6 +149,7 @@ infer env = \case
 -- Makes sure that ty1 is a subtype of ty2
 subsumes :: Members '[Error TypeError] r => Type -> Type -> Sem r ()
 subsumes NeverT _ = pure ()
+subsumes _ NeverT = pure ()
 subsumes IntT IntT = pure ()
 subsumes BoolT BoolT = pure ()
 subsumes UnitT UnitT = pure ()

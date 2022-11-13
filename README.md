@@ -20,8 +20,9 @@ Also, Trident is in an actually usable state at the moment.
 These are some important features that are currently missing from the language. If any of this sounds interesting and you would like to contribute, feel free to open an issue. Any help is appreciated!
 
 - [ ] Source code positions in diagnostics
-- [ ] Arithmetic (-, *, //)
-- [ ] If expressions
+- [ ] Arithmetic (-, *, //, mod)
+- [ ] Remaining comparison operators (<, >, >=, ==, !=)
+- [X] If expressions
 - [X] Expression blocks (like `{}` expressions in Rust)
 - [ ] Inline commands
 - [ ] Hindley Milner type inference

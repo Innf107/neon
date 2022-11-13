@@ -63,8 +63,8 @@ compileStatements currentBlock = \case
     Perform () expr :<| statements -> do
         mnextBlock <- runError $ compileExprTo WildCardPlace currentBlock expr
         case (mnextBlock, statements) of
-            (Left ReturnDivergence, []) -> pure Nothing
-            (Left info, _) -> do
+            (Left ReturnDivergence, Empty) -> pure Nothing
+            (Left info, _ :<| _) -> do
                 output (UnreachableCode info)
                 pure Nothing
             (Right nextBlock, _) -> compileStatements nextBlock statements
@@ -122,14 +122,27 @@ compileExprTo targetPlace currentBlock = \case
     C.If _ty condition thenBranch elseBranch -> do
         condLocal <- newAnonymousLocal Number
         ifBlockData <- compileExprTo (LocalPlace condLocal) currentBlock condition
-        thenBlockData <- reserveBlock >>= \block -> compileExprTo targetPlace block thenBranch
-        elseBlockData <- reserveBlock >>= \block -> compileExprTo targetPlace block elseBranch
+        
+        thenBlock <- reserveBlock
+        elseBlock <- reserveBlock
+        
+        mthenBlockData <- runError $ compileExprTo targetPlace thenBlock thenBranch
+        
+        melseBlockData <- runError $ compileExprTo targetPlace elseBlock elseBranch
 
         continuationBlock <- reserveBlock
 
-        thenBlock <- finishBlock (Goto (partialBlockIndex continuationBlock)) thenBlockData
-        elseBlock <- finishBlock (Goto (partialBlockIndex continuationBlock)) elseBlockData
-        _ <- finishBlock (CaseNumber (Copy (LocalPlace condLocal)) [(1, thenBlock), (0, elseBlock)]) ifBlockData
+        case mthenBlockData of
+            Left ReturnDivergence -> pure ()
+            Right thenBlockData -> void $ finishBlock (Goto (partialBlockIndex continuationBlock)) thenBlockData
+        case melseBlockData of
+            Left ReturnDivergence -> pure ()
+            Right elseBlockData -> void $ finishBlock (Goto (partialBlockIndex continuationBlock)) elseBlockData
+
+        _ <- finishBlock (CaseNumber (Copy (LocalPlace condLocal)) 
+            [ (1, (partialBlockIndex thenBlock))
+            , (0, (partialBlockIndex elseBlock))
+            ]) ifBlockData
         pure continuationBlock
 
 newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Local
