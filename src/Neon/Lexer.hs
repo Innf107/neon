@@ -29,6 +29,7 @@ data TokenClass
     | RETURN
     | SEMI
     | PLUS
+    | LEOP
     deriving (Show, Eq)
 
 data Token = Token {tokenClass :: TokenClass, tokenSpan :: Span}
@@ -70,6 +71,8 @@ lex filePath = go (UnsafeMkSpan filePath 1 1 1 1) Default
                     ',' -> (Token COMMA  (inc span) :) <$> go (inc span) Default rest
                     ';' -> (Token SEMI   (inc span) :) <$> go (inc span) Default rest
                     '+' -> (Token PLUS   (inc span) :) <$> go (inc span) Default rest
+                    '<' | Just newRest <- Text.stripPrefix "=" rest -> 
+                        (Token LEOP (inc span) :) <$> go (inc (inc span)) Default newRest
                     '-' | Just newRest <- Text.stripPrefix "-" rest -> go (inc (inc span)) InLineComment newRest
                     '\n' -> go (incLine span) Default rest
                     _ | Char.isSpace c -> go (inc span) Default rest

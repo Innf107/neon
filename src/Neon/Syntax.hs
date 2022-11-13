@@ -37,7 +37,9 @@ type family XReturn (p :: Pass)
 type family XExprBlock (p :: Pass)
 type family XIf (p :: Pass)
 
-data BinOp = Add deriving (Show)
+data BinOp = Add 
+           | LE
+           deriving (Show)
 
 data Type = IntT
           | BoolT

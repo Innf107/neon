@@ -98,7 +98,7 @@ assignToScore score rvalue = do
     case rvalue of
         Use (Literal lit) -> case lit of
             IntLit n -> emitCommands ["scoreboard players set " <> score <> " neon " <> show n]
-            UnitLit -> undefined
+            UnitLit -> pure ()
         Use (Copy place) -> do
             localScore <- placeAsScoreRValue place
             emitCommands ["scoreboard players operation " <> score <> " neon = " <> localScore <> " neon"]
@@ -127,7 +127,29 @@ assignPurePrimOpToScore score prim operands = case prim of
                 Copy place -> do
                     placeScore <- placeAsScoreRValue place
                     emitCommands ["scoreboard players operation " <> score <> " neon += " <> placeScore <> " neon"]
-
+    PrimLE -> case operands of
+        [op1, op2] -> case (op1, op2) of
+            (Literal (IntLit n), Literal (IntLit m)) ->
+                emitCommands [ "scoreboard players set " <> score <> " neon " <> (if n <= m then "1" else "0") ]
+            (Copy leftPlace, Copy rightPlace) -> do
+                leftScore <- placeAsScoreRValue leftPlace
+                rightScore <- placeAsScoreRValue rightPlace
+                emitCommands [ "scoreboard players set " <> score <> " neon 0"
+                             , "execute if score " <> leftScore <> " neon <= " <> rightScore <> " neon run scoreboard players set " <> score <> " neon 1" 
+                             ]
+            (Copy leftPlace, Literal (IntLit m)) -> do
+                leftScore <- placeAsScoreRValue leftPlace
+                emitCommands [ "scoreboard players set " <> score <> " neon 0" 
+                             , "execute if score " <> leftScore <> " neon matches " <> show m <> ".. run scoreboard players set " <> score <> " neon 1"
+                             ]
+            (Literal (IntLit n), Copy rightPlace) -> do
+                rightScore <- placeAsScoreRValue rightPlace
+                emitCommands [ "scoreboard players set " <> score <> " neon 0" 
+                             , "execute if score " <> rightScore <> " neon matches .." <> show n <> " run scoreboard players set " <> score <> " neon 1"
+                             ]
+            (Literal UnitLit, _) -> error $ "<=#: Invalid unit literal operand"
+            (_, Literal UnitLit) -> error $ "<=#: Invalid unit literal operand"
+        _ -> error $ "trying to apply +# primop to invalid arguments"
     
 
 placeAsScoreRValue :: (Members '[Reader FunctionInfo] r, HasCallStack) => Place -> Sem r Text

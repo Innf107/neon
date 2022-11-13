@@ -27,7 +27,7 @@ failUsage message = putTextLn (message <> "\n\n" <> usage) >> exitFailure
 
 prettyLowerWarning :: LowerWarning -> Text
 prettyLowerWarning = \case
-    UnreachableCode reason -> "\ESC[1m\ESC[95m\STXWARNING:\ESC[0m\ESC[1m\STX Unreachable code. Reason: " <> show reason <> "\ESC[0m\STX"
+    UnreachableCode reason -> "\ESC[1m\ESC[95m\STXWARNING:\ESC[0m\ESC[1m\STX Unreachable code: " <> show reason <> "\ESC[0m\STX"
 
 main :: IO ()
 main = do    

@@ -37,7 +37,9 @@ import GHC.Exts (fromList)
 %token return           { (Token RETURN _) }
 %token ';'              { (Token SEMI _) }
 %token '+'              { (Token PLUS _) }
+%token '<='             { (Token LEOP _) }
 
+%left '<='
 %left '+'
 
 %%
@@ -90,6 +92,7 @@ Expr : '(' Expr ')'                 { $2 }
      | ident                        { Var () $1 }
      | ident '(' ArgumentList ')'   { FCall () $1 $3 }
      | Expr '+' Expr                { BinOp () $1 Add $3 }
+     | Expr '<=' Expr               { BinOp () $1 LE $3 }
      | return Expr                  { Return () $2 }
      | '{' ExprBlockBody '}'        { let (stmnts, ret) = $2 in ExprBlock () (fromList stmnts) ret }
      | if Expr '{' ExprBlockBody '}' else '{' ExprBlockBody '}' 

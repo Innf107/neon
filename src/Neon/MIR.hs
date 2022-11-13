@@ -15,9 +15,7 @@ module Neon.MIR (
     Local (..),
 
     PartialBlockData (..),
-    emptyBlockData,
     addStatements,
-    finishBlock,
 ) where
 
 import Neon.Prelude
@@ -69,22 +67,13 @@ data BasicBlockData = BasicBlockData {
 
 data PartialBlockData = PartialBlockData {
     partialStatements :: Seq Statement
+,   partialBlockIndex :: BasicBlock
 }
 
 addStatements :: Seq Statement -> PartialBlockData -> PartialBlockData
 addStatements statements (blockData@PartialBlockData { partialStatements }) = 
     blockData { partialStatements = partialStatements <> statements}
 
-emptyBlockData :: PartialBlockData
-emptyBlockData = PartialBlockData {
-    partialStatements = []
-}
-
-finishBlock :: Terminator -> PartialBlockData -> BasicBlockData
-finishBlock terminator PartialBlockData { partialStatements } = BasicBlockData {
-        statements = partialStatements
-    ,   terminator
-    }
 
 instance Pretty BasicBlockData where
     pretty BasicBlockData {statements, terminator} =
@@ -103,13 +92,12 @@ data Terminator where
         , destinationPlace :: Place
         , target :: BasicBlock
         } -> PrettyAnn "$2 := $0($1*', ') -> $3" Terminator
-    CaseNumber :: Operand -> Seq (Int, BasicBlock) 
-        -> PrettyAnn (PrettyVia "prettyCaseNumber") Terminator
+    CaseNumber :: Operand -> Seq (Int, BasicBlock) -> PrettyAnn (PrettyVia "prettyCaseNumber") Terminator
 
 prettyCaseNumber :: Operand -> Seq (Int, BasicBlock) -> Text
 prettyCaseNumber operand branches = "case " <> pretty operand <> " {" 
-    <> foldMap (\(n, block) -> "\n    " <> pretty n <> " -> " <> pretty block) branches
-    <> "\n}"
+    <> foldMap (\(n, block) -> "\n        " <> pretty n <> " -> " <> pretty block) branches
+    <> "\n    }"
 
 data Local = Local {
     localIx :: Int
@@ -152,6 +140,7 @@ data Literal where
 
 data PurePrimOp where
     PrimAdd :: PrettyAnn "+" PurePrimOp
+    PrimLE :: PrettyAnn "<=" PurePrimOp
 
 makePretty ''Def
 makePretty ''BasicBlock

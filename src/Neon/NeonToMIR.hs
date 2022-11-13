@@ -32,16 +32,22 @@ compileDecl (C.DefFunction () funName params retTy statements retExpr) = do
     let returnShape = shapeForType retTy
 
     (state, ()) <- runState funState $ do
-        mlastBlock <- compileStatements emptyBlockData statements
+        block <- reserveBlock
+        mlastBlock <- compileStatements block statements
         case mlastBlock of
             Nothing -> pure ()
-            Just lastBlock -> void $ addBlock 
+            Just lastBlock -> void 
                 $ finishBlock MIR.Return 
                 $ addStatements [Assign ReturnPlace (Use (Literal MIR.UnitLit))] lastBlock
     
     let FunState { localShapes, blockData } = state
 
-    pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks=blockData })
+    let cleanedBlocks = blockData & mapWithIndex \i -> \case
+            Nothing -> error $ "Unfinished partial block at index " <> show i
+            Just bbd -> bbd
+
+
+    pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks=cleanedBlocks })
 
 compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r (Maybe PartialBlockData)
 compileStatements currentBlock = \case 
@@ -82,25 +88,31 @@ compileExprTo targetPlace currentBlock = \case
     FCall _ty funName argExprs -> do
         exprsWithLocals <- traverse (\expr -> (, expr) <$> newAnonymousLocal (shapeForType (getType expr))) argExprs
         block <- foldrM (\(local, expr) block -> compileExprTo (LocalPlace local) block expr) currentBlock exprsWithLocals
-        nextBlock <- reserveBlock 1
+        nextBlock <- reserveBlock
         let terminator = Call {
                     callFun = funName
                 ,   callArgs = fmap (\(local, _) -> Copy (LocalPlace local)) (fromList exprsWithLocals)
                 ,   destinationPlace = targetPlace
-                ,   target = nextBlock
+                ,   target = (partialBlockIndex nextBlock)
                 }
-        addBlock (finishBlock terminator block)
+        finishBlock terminator block
         -- Return empty block data for the new, currently unwritten 'nextBlock'
-        pure emptyBlockData
+        pure nextBlock
     BinOp _ty left Add right -> do
         leftLocal <- newAnonymousLocal Number
         block <- compileExprTo (LocalPlace leftLocal) currentBlock left
         rightLocal <- newAnonymousLocal Number
         block <- compileExprTo (LocalPlace rightLocal) block right
         pure $ addStatements [MIR.Assign targetPlace (PurePrimOp PrimAdd [Copy (LocalPlace (leftLocal)), Copy (LocalPlace (rightLocal))])] block
+    BinOp _ty left LE right -> do
+        leftLocal <- newAnonymousLocal Number
+        block <- compileExprTo (LocalPlace leftLocal) currentBlock left
+        rightLocal <- newAnonymousLocal Number
+        block <- compileExprTo (LocalPlace rightLocal) block right
+        pure $ addStatements [MIR.Assign targetPlace (PurePrimOp PrimLE [Copy (LocalPlace (leftLocal)), Copy (LocalPlace (rightLocal))])] block
     C.Return () expr -> do
         lastBlock <- compileExprTo ReturnPlace currentBlock expr
-        _ <- addBlock $ finishBlock MIR.Return lastBlock
+        _ <- finishBlock MIR.Return lastBlock
         throw ReturnDivergence
     C.ExprBlock () statements retExpr -> do
         compileStatements currentBlock statements >>= \case
@@ -108,8 +120,17 @@ compileExprTo targetPlace currentBlock = \case
             Nothing -> throw ReturnDivergence
             Just lastBlock -> compileExprTo targetPlace lastBlock retExpr
     C.If _ty condition thenBranch elseBranch -> do
-        
-        undefined
+        condLocal <- newAnonymousLocal Number
+        ifBlockData <- compileExprTo (LocalPlace condLocal) currentBlock condition
+        thenBlockData <- reserveBlock >>= \block -> compileExprTo targetPlace block thenBranch
+        elseBlockData <- reserveBlock >>= \block -> compileExprTo targetPlace block elseBranch
+
+        continuationBlock <- reserveBlock
+
+        thenBlock <- finishBlock (Goto (partialBlockIndex continuationBlock)) thenBlockData
+        elseBlock <- finishBlock (Goto (partialBlockIndex continuationBlock)) elseBlockData
+        _ <- finishBlock (CaseNumber (Copy (LocalPlace condLocal)) [(1, thenBlock), (0, elseBlock)]) ifBlockData
+        pure continuationBlock
 
 newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Local
 newAnonymousLocal shape = state (\s@FunState{nextLocal, localShapes} -> 
@@ -135,23 +156,36 @@ localForVar name = do
     let shape = index localShapes local
     pure (Local { localIx = local, localName = Just name }, shape)
 
-addBlock :: Members '[State FunState] r => BasicBlockData -> Sem r BasicBlock
-addBlock newBlock = state (\s@FunState { blockData } -> 
-    (BasicBlock { blockIndex = length blockData }, s { blockData = blockData |> newBlock }))
+finishBlock :: Members '[State FunState] r 
+            => Terminator 
+            -> PartialBlockData 
+            -> Sem r BasicBlock
+finishBlock terminator PartialBlockData { partialStatements, partialBlockIndex } = do
+    let BasicBlock{ blockIndex } = partialBlockIndex
+    
+    let newBBData = BasicBlockData {
+            statements = partialStatements
+        ,   terminator
+        }
+    state \s@FunState { blockData } -> 
+        ( partialBlockIndex
+        , s { blockData = insertAt blockIndex (Just newBBData) $ deleteAt blockIndex $ blockData })
+        
+        
 
--- | Reserve a reference to the next 'nth' block (starting at 0!) without associating any data with it.
--- THIS REQUIRES THAT THE BLOCK WILL BE WRITTEN TO IMMEDIATELY!
--- Any subsequent call to `addBlock` (after `>= offset` calls to be exact) that is not
--- associated with this `reserveBlock` call, or any access of the block before an associated 
--- `addBlock` call is invalid and will almost definitely crash or produce wildly incorrect results!
-reserveBlock :: Members '[State FunState] r => Int -> Sem r BasicBlock
-reserveBlock offset = gets (\FunState {blockData} -> BasicBlock { blockIndex = length blockData + offset })
+reserveBlock :: Members '[State FunState] r => Sem r PartialBlockData
+reserveBlock = do
+    nextIndex <- state (\s@FunState{blockData} -> (length blockData, s{blockData = blockData |> Nothing}))
+    pure $ PartialBlockData {
+        partialStatements = []
+    ,   partialBlockIndex = BasicBlock { blockIndex = nextIndex }
+    }
 
 data FunState = FunState
     { nameLocals :: Map Name Int
     , nextLocal :: Int
     , localShapes :: Seq Shape
-    , blockData :: Seq BasicBlockData
+    , blockData :: Seq (Maybe BasicBlockData)
     }
 
 shapeForType :: Type -> Shape

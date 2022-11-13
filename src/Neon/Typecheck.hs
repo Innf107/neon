@@ -121,6 +121,10 @@ infer env = \case
         left' <- check env IntT left
         right' <- check env IntT right
         pure (BinOp IntT left' Add right')
+    BinOp () left LE right -> do
+        left' <- check env IntT left
+        right' <- check env IntT right
+        pure (BinOp BoolT left' LE right')
     Return () retExpr -> do
         EnclosingFunEnv { returnType } <- ask
         retExpr' <- check env returnType retExpr
@@ -146,5 +150,6 @@ infer env = \case
 subsumes :: Members '[Error TypeError] r => Type -> Type -> Sem r ()
 subsumes NeverT _ = pure ()
 subsumes IntT IntT = pure ()
+subsumes BoolT BoolT = pure ()
 subsumes UnitT UnitT = pure ()
 subsumes ty1 ty2 = throw (NotASubType ty1 ty2)
