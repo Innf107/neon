@@ -15,9 +15,16 @@ data Statement (p :: Pass)
     = DefVar (XDefVar p) (XName p) (Expr p)
     -- | Perform an expression for its side effect while ignoring the result
     | Perform (XPerform p) (Expr p)
+    | InlineAsm (XInlineAsm p) (Seq (InlineAsmComponent p))
 
 type family XDefVar (p :: Pass)
 type family XPerform (p :: Pass)
+type family XInlineAsm (p :: Pass)
+
+data InlineAsmComponent (p :: Pass)
+    = AsmText (XAsmText p) Text
+
+type family XAsmText (p :: Pass)
 
 data Expr (p :: Pass) = IntLit (XIntLit p) Int
                       | UnitLit (XUnitLit p)
@@ -82,6 +89,15 @@ type instance XDefVar       Typed   = ()
 type instance XPerform      Parsed  = ()
 type instance XPerform      Renamed = ()
 type instance XPerform      Typed   = ()
+
+type instance XInlineAsm    Parsed  = ()
+type instance XInlineAsm    Renamed = ()
+type instance XInlineAsm    Typed   = ()
+
+type instance XAsmText      Parsed  = ()
+type instance XAsmText      Renamed = ()
+type instance XAsmText      Typed   = ()
+
 
 type instance XUnitLit      Parsed  = ()
 type instance XUnitLit      Renamed = ()

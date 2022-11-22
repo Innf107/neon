@@ -9,7 +9,9 @@ import Data.List qualified as List
 
 
 
-data LexError = InvalidChar Char deriving (Show, Eq)
+data LexError = InvalidChar Char 
+              | UnexpectedEOF
+              deriving (Show, Eq)
 
 data TokenClass
     = IDENT Text
@@ -30,9 +32,13 @@ data TokenClass
     | SEMI
     | PLUS
     | LEOP
+    | OPENINLINEASM
+    | INLINEASMTEXT Text
+    | CLOSEINLINEASM
     deriving (Show, Eq)
 
 data Token = Token {tokenClass :: TokenClass, tokenSpan :: Span}
+
 
 instance Spanned Token where
     spanOf Token{tokenSpan} = tokenSpan
@@ -41,6 +47,7 @@ data LexState = Default
               | InIdent [Char] 
               | InIntLit [Char]
               | InLineComment
+              | InlineAsmDefault [Char]
 
 reserved :: Map Text TokenClass
 reserved = [("let", LET), ("if", IF), ("else", ELSE), ("int", INT), ("bool", BOOL), ("return", RETURN)]
@@ -67,12 +74,14 @@ lex filePath = go (UnsafeMkSpan filePath 1 1 1 1) Default
                     ')' -> (Token RPAREN (inc span) :) <$> go (inc span) Default rest
                     '{' -> (Token LBRACE (inc span) :) <$> go (inc span) Default rest
                     '}' -> (Token RBRACE (inc span) :) <$> go (inc span) Default rest
+                    '[' | Just newRest <- Text.stripPrefix "|" rest ->
+                        (Token OPENINLINEASM (inc (inc span)) :) <$> go (inc (inc span)) (InlineAsmDefault []) newRest
                     ':' -> (Token COLON  (inc span) :) <$> go (inc span) Default rest
                     ',' -> (Token COMMA  (inc span) :) <$> go (inc span) Default rest
                     ';' -> (Token SEMI   (inc span) :) <$> go (inc span) Default rest
                     '+' -> (Token PLUS   (inc span) :) <$> go (inc span) Default rest
                     '<' | Just newRest <- Text.stripPrefix "=" rest -> 
-                        (Token LEOP (inc span) :) <$> go (inc (inc span)) Default newRest
+                        (Token LEOP (inc (inc span)) :) <$> go (inc (inc span)) Default newRest
                     '-' | Just newRest <- Text.stripPrefix "-" rest -> go (inc (inc span)) InLineComment newRest
                     '\n' -> go (incLine span) Default rest
                     _ | Char.isSpace c -> go (inc span) Default rest
@@ -103,3 +112,16 @@ lex filePath = go (UnsafeMkSpan filePath 1 1 1 1) Default
         Just (c, rest) -> case c of
             '\n' -> go (incLine span) Default rest
             _ -> go (inc span) InLineComment rest
+
+    go span (InlineAsmDefault lit) input = case Text.uncons input of
+        Nothing -> throw UnexpectedEOF
+        Just (c, rest) -> case c of
+            '|' | Just newRest <- Text.stripPrefix "]" rest ->
+                let addFinalText = case lit of
+                        [] -> id
+                        _ -> (Token (INLINEASMTEXT (fromString (List.reverse lit))) span :)
+                in
+                addFinalText . (Token CLOSEINLINEASM (inc (inc span)) :) <$> go (inc (inc span)) Default newRest
+            -- TODO: Not quite sure how to do this yet
+            '{' -> error "Inline asm interpolation is NYI"
+            _ -> go (inc span) (InlineAsmDefault (c : lit)) rest

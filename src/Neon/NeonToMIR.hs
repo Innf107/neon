@@ -68,7 +68,8 @@ compileStatements currentBlock = \case
                 output (UnreachableCode info)
                 pure Nothing
             (Right nextBlock, _) -> compileStatements nextBlock statements
-    
+    InlineAsm () components :<| statements -> undefined
+
 compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWarning] r 
               => Place 
               -> PartialBlockData 

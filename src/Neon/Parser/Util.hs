@@ -2,6 +2,7 @@ module Neon.Parser.Util (
     withSpan
 ,   pattern IdentToken
 ,   pattern IntLitToken
+,   pattern InlineAsmTextToken
 ,   makeRetExpr
 ,   collapseExprBlock
 ) where
@@ -40,6 +41,13 @@ asIntLitToken _ = Nothing
 
 pattern IntLitToken :: (Int, Span) -> Token
 pattern IntLitToken t <- (asIntLitToken -> Just t)
+
+asInlineAsmTextToken :: Token -> Maybe (Text, Span)
+asInlineAsmTextToken (Token (INLINEASMTEXT text) tokenSpan) = Just (text, tokenSpan)
+asInlineAsmTextToken _ = Nothing
+
+pattern InlineAsmTextToken :: (Text, Span) -> Token
+pattern InlineAsmTextToken t <- (asInlineAsmTextToken -> Just t)
 
 
 makeRetExpr :: Maybe (Expr Parsed) -> Maybe Type -> Maybe (Expr Parsed, Type)

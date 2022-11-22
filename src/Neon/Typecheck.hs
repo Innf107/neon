@@ -74,7 +74,8 @@ typecheckStatement = \case
         pure $ DefVar () varName expr'
     Perform () expr -> do
         env <- get
-        Perform () <$> check env UnitT expr 
+        Perform () <$> check env UnitT expr
+    InlineAsm () components -> undefined
 
 check :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r
       => TCEnv

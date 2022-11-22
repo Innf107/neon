@@ -4,7 +4,7 @@ module Neon.Parser (parse) where
 
 import Prelude
 
-import Relude (fromMaybe)
+import Neon.Prelude (fromMaybe, Seq, (<|))
 
 import Data.Text (Text)
 
@@ -38,6 +38,10 @@ import GHC.Exts (fromList)
 %token ';'              { (Token SEMI _) }
 %token '+'              { (Token PLUS _) }
 %token '<='             { (Token LEOP _) }
+%token '[|'             { (Token OPENINLINEASM _) }
+%token '|]'             { (Token CLOSEINLINEASM _) }
+%token asmTextS         { (InlineAsmTextToken $$) }
+
 
 %left '<='
 %left '+'
@@ -49,6 +53,8 @@ ident :: { Text }
 ident : identS { fst $1 }
 intLit :: { Int }
 intLit : intLitS { fst $1 }
+asmText :: { Text }
+asmText : asmTextS { fst $1 }
 
 -- Left associative grammars are much more efficient for a shift/reduce parser,
 -- so we define some and many this way and reverse the list afterwards
@@ -83,8 +89,13 @@ Body : Statement ';' Body   { let (stmnts, ret) = $3 in ($1 : stmnts, ret) }
      |                      { ([], Nothing) }
 
 Statement :: { Statement Parsed }
-Statement : let ident '=' Expr { DefVar () $2 $4 }
-          | Expr               { Perform () $1 }
+Statement : let ident '=' Expr          { DefVar () $2 $4 }
+          | Expr                        { Perform () $1 }
+          | '[|' InlineAsmBody '|]'     { InlineAsm () $2 }
+
+InlineAsmBody :: { Seq (InlineAsmComponent Parsed) }
+InlineAsmBody : asmText InlineAsmBody   { AsmText () $1 <| $2 }
+              |                         { [] }
 
 Expr :: { Expr Parsed }
 Expr : '(' Expr ')'                 { $2 }
