@@ -38,7 +38,7 @@ import GHC.Exts (fromList)
 %token ';'              { (Token SEMI _) }
 %token '+'              { (Token PLUS _) }
 %token '<='             { (Token LEOP _) }
-%token '[|'             { (Token OPENINLINEASM _) }
+%token '[asm|'          { (Token OPENINLINEASM _) }
 %token '|]'             { (Token CLOSEINLINEASM _) }
 %token asmTextS         { (InlineAsmTextToken $$) }
 
@@ -91,7 +91,7 @@ Body : Statement ';' Body   { let (stmnts, ret) = $3 in ($1 : stmnts, ret) }
 Statement :: { Statement Parsed }
 Statement : let ident '=' Expr          { DefVar () $2 $4 }
           | Expr                        { Perform () $1 }
-          | '[|' InlineAsmBody '|]'     { InlineAsm () $2 }
+          | '[asm|' InlineAsmBody '|]'  { InlineAsm () $2 }
 
 InlineAsmBody :: { Seq (InlineAsmComponent Parsed) }
 InlineAsmBody : asmText InlineAsmBody   { AsmText () $1 <| $2 }

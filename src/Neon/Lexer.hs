@@ -55,6 +55,10 @@ reserved = [("let", LET), ("if", IF), ("else", ELSE), ("int", INT), ("bool", BOO
 inc :: Span -> Span
 inc span@UnsafeMkSpan{endCol} = span{endCol = endCol + 1}
 
+incN :: Int -> Span -> Span
+incN 0 span = span
+incN n span = inc (incN (n - 1) span)
+
 incLine :: Span -> Span
 incLine span@UnsafeMkSpan{endLine} = span{endLine = endLine + 1, endCol = 1}
 
@@ -74,8 +78,8 @@ lex filePath = go (UnsafeMkSpan filePath 1 1 1 1) Default
                     ')' -> (Token RPAREN (inc span) :) <$> go (inc span) Default rest
                     '{' -> (Token LBRACE (inc span) :) <$> go (inc span) Default rest
                     '}' -> (Token RBRACE (inc span) :) <$> go (inc span) Default rest
-                    '[' | Just newRest <- Text.stripPrefix "|" rest ->
-                        (Token OPENINLINEASM (inc (inc span)) :) <$> go (inc (inc span)) (InlineAsmDefault []) newRest
+                    '[' | Just newRest <- Text.stripPrefix "asm|" rest ->
+                        (Token OPENINLINEASM (incN 4 span) :) <$> go (inc (inc span)) (InlineAsmDefault []) newRest
                     ':' -> (Token COLON  (inc span) :) <$> go (inc span) Default rest
                     ',' -> (Token COMMA  (inc span) :) <$> go (inc span) Default rest
                     ';' -> (Token SEMI   (inc span) :) <$> go (inc span) Default rest
