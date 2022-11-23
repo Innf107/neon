@@ -75,7 +75,16 @@ typecheckStatement = \case
     Perform () expr -> do
         env <- get
         Perform () <$> check env UnitT expr
-    InlineAsm () components -> undefined
+    InlineAsm () components -> do
+        env <- get
+        components' <- traverse (typecheckAsmComponent env) components
+        pure $ InlineAsm () components'
+
+typecheckAsmComponent :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r
+                      => TCEnv
+                      -> InlineAsmComponent Renamed
+                      -> Sem r (InlineAsmComponent Typed)
+typecheckAsmComponent _env (AsmText () text) = pure (AsmText () text)
 
 check :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r
       => TCEnv

@@ -96,7 +96,16 @@ renameStatements env (Perform () expr : statements) = do
     statement' <- Perform () <$> renameExpr env expr
     (statements', env) <- renameStatements env statements
     pure (statement' : statements', env)
-renameStatements env (InlineAsm () components : statements) = undefined
+renameStatements env (InlineAsm () components : statements) = do
+    components' <- traverse (renameAsmComponent env) components
+    (statements', env') <- renameStatements env statements
+    pure (InlineAsm () components' : statements', env')
+
+renameAsmComponent :: Members '[Error RenameError] r 
+                    => Env
+                    -> InlineAsmComponent Parsed
+                    -> Sem r (InlineAsmComponent Renamed)
+renameAsmComponent _env (AsmText () text) = pure $ AsmText () text
 
 renameExpr :: Members '[Error RenameError] r => Env -> Expr Parsed -> Sem r (Expr Renamed)
 renameExpr _ (IntLit () i) = pure (IntLit () i)
