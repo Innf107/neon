@@ -9,6 +9,8 @@ import Data.Map qualified as Map
 import Data.IntMap qualified as IntMap
 import Data.List qualified as List
 
+import Data.Text qualified as Text
+
 compile :: [Def] -> Sem r [(FilePath, Text)]
 compile defs = do
     let initialLowerState = LowerState {
@@ -166,7 +168,7 @@ compileTerminator :: forall r. Members '[State LowerState, Reader FunctionInfo] 
 compileTerminator partialFun = \case
     Goto bb -> do
         blockPath <- blockFunPath True bb
-        pure $ addCommands ["call " <> toText blockPath] partialFun
+        pure $ addCommands ["function " <> toText blockPath] partialFun
     Return -> pure partialFun -- Returns are implicit in mcfunctions
     Call funName args returnPlace continuationBlock -> do
         -- Args are passed as the first n locals
@@ -181,7 +183,7 @@ compileTerminator partialFun = \case
                     emitCommands ["scoreboard players operation " <> localInFun (Local i Nothing) funName <> " neon = " <> score <> " neon"]
         
         
-        partialFun <- pure (addCommands ["call " <> show funName] partialFun)
+        partialFun <- pure (addCommands ["function " <> show funName] partialFun)
 
         -- We need to copy the returned value to `returnPlace`
         partialFun <- asks returnShape >>= \case 
@@ -199,7 +201,7 @@ compileTerminator partialFun = \case
             
 
         continuationPath <- blockFunPath True continuationBlock
-        pure $ addCommands ["call " <> toText continuationPath] partialFun
+        pure $ addCommands ["function " <> toText continuationPath] partialFun
     CaseNumber operand branches -> do
         case operand of
             Literal l -> undefined
@@ -209,7 +211,27 @@ compileTerminator partialFun = \case
                     blockFun <- blockFunPath True block
                     pure $ "execute if score " <> placeScore <> " neon matches " <> show i <> " run function " <> toText blockFun
                 pure $ addCommands commands partialFun
-    InlineAsm components continuationBlock -> undefined
+    InlineAsm components continuationBlock -> do
+        interpolatedText <- fold <$> forM components \case
+            AsmText text -> pure text
+            AsmOperand op -> case op of
+                Literal (IntLit n) ->
+                    pure $ show n
+                Literal UnitLit -> undefined
+                Copy place -> placeAsScoreRValue place
+        
+        let cleanedUpCommands = fromList $ lines interpolatedText & mapMaybe \line ->
+                case Text.strip line of
+                    "" -> Nothing
+                    line -> Just line
+
+        continuationBlockPath <- blockFunPath True continuationBlock
+
+        -- The order here looks wrong, but since commands are appended, 
+        -- the arguments have to be reversed unfortunately 
+        pure
+            $ addCommands ["function " <> toText continuationBlockPath]
+            $ addCommands cleanedUpCommands partialFun
 
 blockFunPath :: Members '[Reader FunctionInfo] r => Bool -> BasicBlock -> Sem r FilePath
 blockFunPath includePrefix (BasicBlock { blockIndex }) = do

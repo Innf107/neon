@@ -20,7 +20,7 @@ class Pretty a where
     pretty :: a -> Text
 
 instance Pretty Int where pretty = show
-instance Pretty Text where pretty = show
+instance Pretty Text where pretty = id
 
 makePretty :: Name -> DecsQ
 makePretty ty = do
