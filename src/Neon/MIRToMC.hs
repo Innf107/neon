@@ -209,11 +209,11 @@ compileTerminator partialFun = \case
                     blockFun <- blockFunPath True block
                     pure $ "execute if score " <> placeScore <> " neon matches " <> show i <> " run function " <> toText blockFun
                 pure $ addCommands commands partialFun
+    InlineAsm components continuationBlock -> undefined
 
 blockFunPath :: Members '[Reader FunctionInfo] r => Bool -> BasicBlock -> Sem r FilePath
 blockFunPath includePrefix (BasicBlock { blockIndex }) = do
     FunctionInfo { funName } <- ask
-    let Name { nameIndex } = funName
     let funPrefix = 
             if includePrefix then 
                 renderName funName

@@ -5,6 +5,7 @@ module Neon.MIR (
     BasicBlock (..),
     BasicBlockData (..),
     Statement (..),
+    InlineAsmComponent (..),
     Terminator (..),
     Place (..),
     RValue (..),
@@ -88,16 +89,28 @@ data Terminator where
     -- with a 'target' block to continue in with the result.
     Call ::
         { callFun :: Name
-        , callArgs :: (Seq Operand) 
+        , callArgs :: Seq Operand
         , destinationPlace :: Place
         , target :: BasicBlock
         } -> PrettyAnn "$2 := $0($1*', ') -> $3" Terminator
     CaseNumber :: Operand -> Seq (Int, BasicBlock) -> PrettyAnn (PrettyVia "prettyCaseNumber") Terminator
 
+    -- Inline assembly might perform any arbitrarily complex control flow,
+    -- so we need to treat it as a terminator (TODO: Check if rustc does this as well)
+    InlineAsm :: {
+        components :: Seq InlineAsmComponent
+    ,   target :: BasicBlock
+    } -> PrettyAnn "[asm| $0*''|] -> $1" Terminator
+
 prettyCaseNumber :: Operand -> Seq (Int, BasicBlock) -> Text
 prettyCaseNumber operand branches = "case " <> pretty operand <> " {" 
     <> foldMap (\(n, block) -> "\n        " <> pretty n <> " -> " <> pretty block) branches
     <> "\n    }"
+
+data InlineAsmComponent where 
+    AsmText :: Text -> PrettyAnn "$0" InlineAsmComponent
+    AsmOperand :: Operand -> PrettyAnn "{$0}" InlineAsmComponent
+    
 
 data Local = Local {
     localIx :: Int
@@ -148,6 +161,7 @@ makePretty ''Terminator
 makePretty ''Place
 makePretty ''RValue
 makePretty ''Statement
+makePretty ''InlineAsmComponent
 makePretty ''Operand
 makePretty ''Literal
 makePretty ''PurePrimOp

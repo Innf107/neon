@@ -68,7 +68,25 @@ compileStatements currentBlock = \case
                 output (UnreachableCode info)
                 pure Nothing
             (Right nextBlock, _) -> compileStatements nextBlock statements
-    InlineAsm () components :<| statements -> undefined
+    C.InlineAsm () components :<| statements -> do
+        (components', lastAsmBlock) <- compileInlineAsm currentBlock components
+        continuationBlock <- reserveBlock
+        let terminator = MIR.InlineAsm {
+            components = components'
+        ,   target = partialBlockIndex continuationBlock
+        }
+        _ <- finishBlock terminator lastAsmBlock
+        compileStatements continuationBlock statements
+        
+compileInlineAsm :: Members '[Output LowerWarning, State FunState] r
+                 => PartialBlockData 
+                 -> Seq (C.InlineAsmComponent Typed) 
+                 -> Sem r (Seq MIR.InlineAsmComponent, PartialBlockData)
+compileInlineAsm currentBlock Empty = pure ([], currentBlock)
+compileInlineAsm currentBlock (C.AsmText () text :<| components) = do
+    let component = MIR.AsmText text
+    (restComponents, finalBlock) <- compileInlineAsm currentBlock components
+    pure (component <| restComponents, finalBlock)
 
 compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWarning] r 
               => Place 
