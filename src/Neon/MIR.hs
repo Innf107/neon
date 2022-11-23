@@ -100,7 +100,7 @@ data Terminator where
     InlineAsm :: {
         components :: Seq InlineAsmComponent
     ,   target :: BasicBlock
-    } -> PrettyAnn "[asm| $0*''|] -> $1" Terminator
+    } -> PrettyAnn "[asm|$0*''|] -> $1" Terminator
 
 prettyCaseNumber :: Operand -> Seq (Int, BasicBlock) -> Text
 prettyCaseNumber operand branches = "case " <> pretty operand <> " {" 
@@ -109,7 +109,7 @@ prettyCaseNumber operand branches = "case " <> pretty operand <> " {"
 
 data InlineAsmComponent where 
     AsmText :: Text -> PrettyAnn "$0" InlineAsmComponent
-    AsmOperand :: Operand -> PrettyAnn "{$0}" InlineAsmComponent
+    AsmOperand :: Operand -> PrettyAnn "$$0$" InlineAsmComponent
     
 
 data Local = Local {

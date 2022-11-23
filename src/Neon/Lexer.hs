@@ -157,10 +157,10 @@ lex filePath = go (UnsafeMkSpan filePath 1 1 1 1) Default ([] :: [InterpolationL
         Nothing -> throw UnexpectedEOF
         Just (c, rest) -> case c of
             '|' | Just newRest <- Text.stripPrefix "]" rest ->
-                let addFinalText = case lit of
-                        [] -> id
-                        _ -> (Token (INLINEASMTEXT (fromString (List.reverse lit))) span :)
-                in
                 addFinalText . (Token CLOSEINLINEASM (inc (inc span)) :) <$> go (inc (inc span)) Default interpLevels newRest
-            '$' -> (Token OPENASMINTERP (inc span) :) <$> go (inc span) Default (InlineAsmLevel : interpLevels) rest
+            '$' -> addFinalText . (Token OPENASMINTERP (inc span) :) <$> go (inc span) Default (InlineAsmLevel : interpLevels) rest
             _ -> go (inc span) (InlineAsmDefault (c : lit)) interpLevels rest
+        where
+            addFinalText = case lit of
+                [] -> id
+                _ -> (Token (INLINEASMTEXT (fromString (List.reverse lit))) span :)

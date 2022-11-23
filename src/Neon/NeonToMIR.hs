@@ -69,16 +69,21 @@ compileStatements currentBlock = \case
                 pure Nothing
             (Right nextBlock, _) -> compileStatements nextBlock statements
     C.InlineAsm () components :<| statements -> do
-        (components', lastAsmBlock) <- compileInlineAsm currentBlock components
-        continuationBlock <- reserveBlock
-        let terminator = MIR.InlineAsm {
-            components = components'
-        ,   target = partialBlockIndex continuationBlock
-        }
-        _ <- finishBlock terminator lastAsmBlock
-        compileStatements continuationBlock statements
+        mcomponents <- runError $ compileInlineAsm currentBlock components
+        case mcomponents of
+            Left info -> do
+                output (UnreachableCode info)
+                pure Nothing
+            Right (components', lastAsmBlock) -> do
+                continuationBlock <- reserveBlock
+                let terminator = MIR.InlineAsm {
+                    components = components'
+                ,   target = partialBlockIndex continuationBlock
+                }
+                _ <- finishBlock terminator lastAsmBlock
+                compileStatements continuationBlock statements
         
-compileInlineAsm :: Members '[Output LowerWarning, State FunState] r
+compileInlineAsm :: Members '[Output LowerWarning, State FunState, Error DivergenceInfo] r
                  => PartialBlockData 
                  -> Seq (C.InlineAsmComponent Typed) 
                  -> Sem r (Seq MIR.InlineAsmComponent, PartialBlockData)
@@ -87,8 +92,11 @@ compileInlineAsm currentBlock (C.AsmText () text :<| components) = do
     let component = MIR.AsmText text
     (restComponents, finalBlock) <- compileInlineAsm currentBlock components
     pure (component <| restComponents, finalBlock)
-compileInlineAsm currentBlock (C.AsmInterpolation () expr :<| components) =
-    undefined
+compileInlineAsm currentBlock (C.AsmInterpolation () expr :<| components) = do
+    local <- newAnonymousLocal (shapeForType (getType expr))
+    block' <- compileExprTo (LocalPlace local) currentBlock expr
+    (rest, finalBlock) <- compileInlineAsm block' components
+    pure (MIR.AsmOperand (Copy (LocalPlace local)) <| rest, finalBlock)
 
 compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWarning] r 
               => Place 

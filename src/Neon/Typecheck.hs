@@ -85,7 +85,12 @@ typecheckAsmComponent :: Members '[Error TypeError, State TCDeclEnv, Reader Encl
                       -> InlineAsmComponent Renamed
                       -> Sem r (InlineAsmComponent Typed)
 typecheckAsmComponent _env (AsmText () text) = pure (AsmText () text)
-typecheckAsmComponent env (AsmInterpolation () expr) = undefined
+typecheckAsmComponent env (AsmInterpolation () expr) = do
+    -- We constrain interpolated expressions to be numeric for now.
+    -- In the future we might open this up to more types, but for now I don't know
+    -- how to interpolate anything else
+    expr' <- check env IntT expr
+    pure (AsmInterpolation () expr')
 
 
 check :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r

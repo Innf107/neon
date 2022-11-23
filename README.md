@@ -24,7 +24,7 @@ These are some important features that are currently missing from the language. 
 - [ ] Remaining comparison operators (<, >, >=, ==, !=)
 - [X] If expressions
 - [X] Expression blocks (like `{}` expressions in Rust)
-- [ ] Inline commands
+- [X] Inline commands
 - [ ] Hindley Milner type inference
 - [ ] Structs (and compound shapes in MIR)
 - [ ] Zero sized types
