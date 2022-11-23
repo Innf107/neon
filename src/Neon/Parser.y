@@ -41,7 +41,8 @@ import GHC.Exts (fromList)
 %token '[asm|'          { (Token OPENINLINEASM _) }
 %token '|]'             { (Token CLOSEINLINEASM _) }
 %token asmTextS         { (InlineAsmTextToken $$) }
-
+%token '$<'             { (Token OPENASMINTERP _) }
+%token '>$'             { (Token CLOSEASMINTERP _) }
 
 %left '<='
 %left '+'
@@ -94,8 +95,9 @@ Statement : let ident '=' Expr          { DefVar () $2 $4 }
           | '[asm|' InlineAsmBody '|]'  { InlineAsm () $2 }
 
 InlineAsmBody :: { Seq (InlineAsmComponent Parsed) }
-InlineAsmBody : asmText InlineAsmBody   { AsmText () $1 <| $2 }
-              |                         { [] }
+InlineAsmBody : asmText InlineAsmBody           { AsmText () $1 <| $2 }
+              | '$<' Expr '>$' InlineAsmBody    { AsmInterpolation () $2 <| $4 }
+              |                                 { [] }
 
 Expr :: { Expr Parsed }
 Expr : '(' Expr ')'                 { $2 }

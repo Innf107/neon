@@ -23,8 +23,10 @@ type family XInlineAsm (p :: Pass)
 
 data InlineAsmComponent (p :: Pass)
     = AsmText (XAsmText p) Text
+    | AsmInterpolation (XAsmInterpolation p) (Expr p)
 
 type family XAsmText (p :: Pass)
+type family XAsmInterpolation (p :: Pass)
 
 data Expr (p :: Pass) = IntLit (XIntLit p) Int
                       | UnitLit (XUnitLit p)
@@ -98,6 +100,9 @@ type instance XAsmText      Parsed  = ()
 type instance XAsmText      Renamed = ()
 type instance XAsmText      Typed   = ()
 
+type instance XAsmInterpolation Parsed  = ()
+type instance XAsmInterpolation Renamed = ()
+type instance XAsmInterpolation Typed   = ()
 
 type instance XUnitLit      Parsed  = ()
 type instance XUnitLit      Renamed = ()

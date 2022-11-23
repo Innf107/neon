@@ -85,6 +85,8 @@ typecheckAsmComponent :: Members '[Error TypeError, State TCDeclEnv, Reader Encl
                       -> InlineAsmComponent Renamed
                       -> Sem r (InlineAsmComponent Typed)
 typecheckAsmComponent _env (AsmText () text) = pure (AsmText () text)
+typecheckAsmComponent env (AsmInterpolation () expr) = undefined
+
 
 check :: Members '[Error TypeError, State TCDeclEnv, Reader EnclosingFunEnv] r
       => TCEnv

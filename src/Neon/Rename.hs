@@ -106,6 +106,7 @@ renameAsmComponent :: Members '[Error RenameError] r
                     -> InlineAsmComponent Parsed
                     -> Sem r (InlineAsmComponent Renamed)
 renameAsmComponent _env (AsmText () text) = pure $ AsmText () text
+renameAsmComponent env (AsmInterpolation () expr) = AsmInterpolation () <$> renameExpr env expr 
 
 renameExpr :: Members '[Error RenameError] r => Env -> Expr Parsed -> Sem r (Expr Renamed)
 renameExpr _ (IntLit () i) = pure (IntLit () i)

@@ -87,6 +87,8 @@ compileInlineAsm currentBlock (C.AsmText () text :<| components) = do
     let component = MIR.AsmText text
     (restComponents, finalBlock) <- compileInlineAsm currentBlock components
     pure (component <| restComponents, finalBlock)
+compileInlineAsm currentBlock (C.AsmInterpolation () expr :<| components) =
+    undefined
 
 compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWarning] r 
               => Place 
