@@ -27,6 +27,7 @@ library
       Neon.Config
       Neon.Driver
       Neon.Lexer
+      Neon.LIR
       Neon.MIR
       Neon.MIRToMC
       Neon.NeonToMIR
