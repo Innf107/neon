@@ -78,15 +78,17 @@ compileAssign place rvalue = case place of
     LocalPlace local -> do
         shape <- localShape local        
         case shape of
-            Number -> do
+            IntT -> do
                 score <- localToScore local
                 assignToScore score rvalue
+            _ -> undefined
     ReturnPlace -> do
         shape <- asks returnShape
         case shape of
-            Number -> do
+            IntT -> do
                 score <- returnScore
                 assignToScore score rvalue
+            _ -> undefined
     WildCardPlace -> do
         -- We don't need to compile assignments to wildcards, since all rvalues are pure.
         -- Ideally, these should be optimized out before lowering anyway.
@@ -188,7 +190,7 @@ compileTerminator partialFun = \case
         -- We need to copy the returned value to `returnPlace`
         partialFun <- asks returnShape >>= \case 
             -- TODO: Would be nice to avoid some of the duplication between this and compileAssign
-            Number -> do
+            IntT -> do
                 case returnPlace of
                     LocalPlace n -> do
                         score <- localToScore n
@@ -197,6 +199,7 @@ compileTerminator partialFun = \case
                         score <- returnScore
                         pure (addCommands ["scoreboard players operation " <> score <> " neon = " <> returnScoreForFun funName <> " neon"] partialFun)
                     WildCardPlace -> pure partialFun
+            _ -> undefined
         
             
 
@@ -268,11 +271,11 @@ newtype LowerState = LowerState {
 data FunctionInfo = FunctionInfo {
         funName :: Name
     ,   argCount :: Int
-    ,   localShapes :: Seq Shape
-    ,   returnShape :: Shape
+    ,   localShapes :: Seq Type
+    ,   returnShape :: Type
     }
 
-localShape :: Members '[Reader FunctionInfo] r => Local -> Sem r Shape
+localShape :: Members '[Reader FunctionInfo] r => Local -> Sem r Type
 localShape Local { localIx } = asks (\FunctionInfo { localShapes } -> index localShapes localIx)
 
 localInFun :: Local -> Name -> Text

@@ -4,6 +4,7 @@ module Neon.Prelude (
 ,   HSType
 ,   state
 ,   runOutputStdout
+,   assertM
 ) where
 
 import Relude as Export hiding (
@@ -74,6 +75,7 @@ import Data.DList as Export (DList)
 import Neon.Span as Export
 
 import Relude qualified
+import Control.Exception (assert)
 type HSType = Relude.Type
 
 instance StaticMap (Seq a) where
@@ -93,3 +95,7 @@ state f = do
 runOutputStdout :: Members '[Embed IO] r => (o -> Text) -> Sem (Output o : r) a -> Sem r a
 runOutputStdout pretty = interpret \case
     Output o -> putTextLn (pretty o)
+
+assertM :: (HasCallStack, Applicative f) => Bool -> f ()
+assertM x = assert x (pure ())
+{-# INLINE assertM #-}

@@ -2,7 +2,7 @@ module Neon.NeonToMIR where
 
 import Neon.Prelude
 
-import Neon.Syntax as C
+import Neon.Syntax as Neon
 
 import Neon.MIR as MIR
 
@@ -14,22 +14,22 @@ data DivergenceInfo = ReturnDivergence deriving (Show) -- TODO: Include a span h
 
 data LowerWarning = UnreachableCode DivergenceInfo deriving (Show)
 
-compile :: Members '[Output LowerWarning] r => [C.Decl Typed] -> Sem r [MIR.Def]
+compile :: Members '[Output LowerWarning] r => [Neon.Decl Typed] -> Sem r [MIR.Def]
 compile = traverse compileDecl
 
-compileDecl :: Members '[Output LowerWarning] r => C.Decl Typed -> Sem r MIR.Def
-compileDecl (C.DefFunction () funName params retTy statements retExpr) = do
-    let paramShapes = map (shapeForType . snd) params
+compileDecl :: Members '[Output LowerWarning] r => Neon.Decl Typed -> Sem r MIR.Def
+compileDecl (Neon.DefFunction () funName params retTy statements retExpr) = do
+    let paramTypes = map (lowerType . snd) params
     let funState =
             FunState
                 { nameLocals = fromList $ zipWith (\(x, _) i -> (x, i)) params [0 ..]
                 , nextLocal = length params
-                , localShapes = fromList paramShapes
+                , localTypes = fromList paramTypes
                 , blockData = []
                 }
 
-    statements <- pure $ fromList statements |> Perform () (C.Return () retExpr)
-    let returnShape = shapeForType retTy
+    statements <- pure $ fromList statements |> Perform () (Neon.Return () retExpr)
+    let returnType = lowerType retTy
 
     (state, ()) <- runState funState $ do
         block <- reserveBlock
@@ -40,20 +40,20 @@ compileDecl (C.DefFunction () funName params retTy statements retExpr) = do
                 $ finishBlock MIR.Return 
                 $ addStatements [Assign ReturnPlace (Use (Literal MIR.UnitLit))] lastBlock
     
-    let FunState { localShapes, blockData } = state
+    let FunState { localTypes, blockData } = state
 
     let cleanedBlocks = blockData & mapWithIndex \i -> \case
             Nothing -> error $ "Unfinished partial block at index " <> show i
             Just bbd -> bbd
 
 
-    pure $ MIR.DefFunction funName (length params) (localShapes) returnShape (Body { blocks=cleanedBlocks })
+    pure $ MIR.DefFunction funName (length params) (localTypes) returnType (Body { blocks=cleanedBlocks })
 
-compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (C.Statement Typed) -> Sem r (Maybe PartialBlockData)
+compileStatements :: Members '[Output LowerWarning, State FunState] r => PartialBlockData -> Seq (Neon.Statement Typed) -> Sem r (Maybe PartialBlockData)
 compileStatements currentBlock = \case 
     Empty -> pure (Just currentBlock)
     DefVar () varName expr :<| statements -> do
-        local <- newLocal varName (shapeForType (getType expr))
+        local <- newLocal varName (lowerType (getType expr))
         runError (compileExprTo (LocalPlace local) currentBlock expr) >>= \case
             Left info -> do
                 output (UnreachableCode info)
@@ -68,7 +68,7 @@ compileStatements currentBlock = \case
                 output (UnreachableCode info)
                 pure Nothing
             (Right nextBlock, _) -> compileStatements nextBlock statements
-    C.InlineAsm () components :<| statements -> do
+    Neon.InlineAsm () components :<| statements -> do
         mcomponents <- runError $ compileInlineAsm currentBlock components
         case mcomponents of
             Left info -> do
@@ -85,15 +85,15 @@ compileStatements currentBlock = \case
         
 compileInlineAsm :: Members '[Output LowerWarning, State FunState, Error DivergenceInfo] r
                  => PartialBlockData 
-                 -> Seq (C.InlineAsmComponent Typed) 
+                 -> Seq (Neon.InlineAsmComponent Typed) 
                  -> Sem r (Seq MIR.InlineAsmComponent, PartialBlockData)
 compileInlineAsm currentBlock Empty = pure ([], currentBlock)
-compileInlineAsm currentBlock (C.AsmText () text :<| components) = do
+compileInlineAsm currentBlock (Neon.AsmText () text :<| components) = do
     let component = MIR.AsmText text
     (restComponents, finalBlock) <- compileInlineAsm currentBlock components
     pure (component <| restComponents, finalBlock)
-compileInlineAsm currentBlock (C.AsmInterpolation () expr :<| components) = do
-    local <- newAnonymousLocal (shapeForType (getType expr))
+compileInlineAsm currentBlock (Neon.AsmInterpolation () expr :<| components) = do
+    local <- newAnonymousLocal (lowerType (getType expr))
     block' <- compileExprTo (LocalPlace local) currentBlock expr
     (rest, finalBlock) <- compileInlineAsm block' components
     pure (MIR.AsmOperand (Copy (LocalPlace local)) <| rest, finalBlock)
@@ -101,21 +101,21 @@ compileInlineAsm currentBlock (C.AsmInterpolation () expr :<| components) = do
 compileExprTo :: Members '[State FunState, Error DivergenceInfo, Output LowerWarning] r 
               => Place 
               -> PartialBlockData 
-              -> C.Expr Typed 
+              -> Neon.Expr Typed 
               -> Sem r PartialBlockData
 compileExprTo targetPlace currentBlock = \case
-    C.IntLit () n -> do
+    Neon.IntLit () n -> do
         let block = addStatements [MIR.Assign targetPlace (Use (Literal (MIR.IntLit n)))] currentBlock
         pure block
-    C.UnitLit () -> do
+    Neon.UnitLit () -> do
         let block = addStatements [MIR.Assign targetPlace (Use (Literal (MIR.UnitLit)))] currentBlock
         pure block
     Var _ty varName -> do
-        (varLocal, _varShape) <- localForVar varName
+        (varLocal, _varType) <- localForVar varName
         let block = addStatements [MIR.Assign targetPlace (Use (Copy (LocalPlace varLocal)))] currentBlock
         pure block
     FCall _ty funName argExprs -> do
-        exprsWithLocals <- traverse (\expr -> (, expr) <$> newAnonymousLocal (shapeForType (getType expr))) argExprs
+        exprsWithLocals <- traverse (\expr -> (, expr) <$> newAnonymousLocal (lowerType (getType expr))) argExprs
         block <- foldrM (\(local, expr) block -> compileExprTo (LocalPlace local) block expr) currentBlock exprsWithLocals
         nextBlock <- reserveBlock
         let terminator = Call {
@@ -128,28 +128,28 @@ compileExprTo targetPlace currentBlock = \case
         -- Return empty block data for the new, currently unwritten 'nextBlock'
         pure nextBlock
     BinOp _ty left Add right -> do
-        leftLocal <- newAnonymousLocal Number
+        leftLocal <- newAnonymousLocal MIR.IntT
         block <- compileExprTo (LocalPlace leftLocal) currentBlock left
-        rightLocal <- newAnonymousLocal Number
+        rightLocal <- newAnonymousLocal MIR.IntT
         block <- compileExprTo (LocalPlace rightLocal) block right
         pure $ addStatements [MIR.Assign targetPlace (PurePrimOp PrimAdd [Copy (LocalPlace (leftLocal)), Copy (LocalPlace (rightLocal))])] block
     BinOp _ty left LE right -> do
-        leftLocal <- newAnonymousLocal Number
+        leftLocal <- newAnonymousLocal MIR.IntT
         block <- compileExprTo (LocalPlace leftLocal) currentBlock left
-        rightLocal <- newAnonymousLocal Number
+        rightLocal <- newAnonymousLocal MIR.IntT
         block <- compileExprTo (LocalPlace rightLocal) block right
         pure $ addStatements [MIR.Assign targetPlace (PurePrimOp PrimLE [Copy (LocalPlace (leftLocal)), Copy (LocalPlace (rightLocal))])] block
-    C.Return () expr -> do
+    Neon.Return () expr -> do
         lastBlock <- compileExprTo ReturnPlace currentBlock expr
         _ <- finishBlock MIR.Return lastBlock
         throw ReturnDivergence
-    C.ExprBlock () statements retExpr -> do
+    Neon.ExprBlock () statements retExpr -> do
         compileStatements currentBlock statements >>= \case
             -- The block diverges in all branches, so this expression necessarily diverges
             Nothing -> throw ReturnDivergence
             Just lastBlock -> compileExprTo targetPlace lastBlock retExpr
-    C.If _ty condition thenBranch elseBranch -> do
-        condLocal <- newAnonymousLocal Number
+    Neon.If _ty condition thenBranch elseBranch -> do
+        condLocal <- newAnonymousLocal MIR.BoolT
         ifBlockData <- compileExprTo (LocalPlace condLocal) currentBlock condition
         
         thenBlock <- reserveBlock
@@ -174,29 +174,29 @@ compileExprTo targetPlace currentBlock = \case
             ]) ifBlockData
         pure continuationBlock
 
-newAnonymousLocal :: Members '[State FunState] r => Shape -> Sem r Local
-newAnonymousLocal shape = state (\s@FunState{nextLocal, localShapes} -> 
+newAnonymousLocal :: Members '[State FunState] r => MIR.Type -> Sem r Local
+newAnonymousLocal ty = state (\s@FunState{nextLocal, localTypes} -> 
     ( Local { localIx = nextLocal, localName = Nothing }
     , s { nextLocal = nextLocal + 1
-        , localShapes = localShapes |> shape
+        , localTypes = localTypes |> ty
         }))
 
-newLocal :: Members '[State FunState] r => Name -> Shape -> Sem r Local
-newLocal name shape = state (\s@FunState{nameLocals, nextLocal, localShapes} -> 
+newLocal :: Members '[State FunState] r => Name -> MIR.Type -> Sem r Local
+newLocal name ty = state (\s@FunState{nameLocals, nextLocal, localTypes} -> 
     ( Local { localIx = nextLocal, localName = Just name }
     , s { nameLocals = insert name nextLocal nameLocals
         , nextLocal = nextLocal + 1
-        , localShapes = localShapes |> shape
+        , localTypes = localTypes |> ty
         }))
 
-localForVar :: Members '[State FunState] r => Name -> Sem r (Local, Shape)
+localForVar :: Members '[State FunState] r => Name -> Sem r (Local, MIR.Type)
 localForVar name = do
-    FunState { nameLocals, localShapes } <- get
+    FunState { nameLocals, localTypes } <- get
     let local = case lookup name nameLocals of
             Just local -> local
             Nothing -> error $ "NeonToMIR.localForVar: Invalid local variable '" <> show name <> "'. There is no local associated with this variable!"
-    let shape = index localShapes local
-    pure (Local { localIx = local, localName = Just name }, shape)
+    let ty = index localTypes local
+    pure (Local { localIx = local, localName = Just name }, ty)
 
 finishBlock :: Members '[State FunState] r 
             => Terminator 
@@ -226,12 +226,12 @@ reserveBlock = do
 data FunState = FunState
     { nameLocals :: Map Name Int
     , nextLocal :: Int
-    , localShapes :: Seq Shape
+    , localTypes :: Seq MIR.Type
     , blockData :: Seq (Maybe BasicBlockData)
     }
 
-shapeForType :: Type -> Shape
-shapeForType IntT = Number
-shapeForType BoolT = Number -- Booleans are desugared into numeric shapes. Maybe we should include some information in mir, so that we know checking for 0 and 1 is exhaustive?
-shapeForType UnitT = Number -- TODO: This should be something zero sized, ideally something like `TupleShape []`
-shapeForType NeverT = Number -- TODO: This should probably be zero sized? It's never going to be used anyway. Maybe we should just have a never shape?
+lowerType :: Neon.Type -> MIR.Type
+lowerType Neon.IntT = MIR.IntT
+lowerType Neon.BoolT = MIR.BoolT
+lowerType Neon.UnitT = MIR.UnitT
+lowerType Neon.NeverT = MIR.NeverT

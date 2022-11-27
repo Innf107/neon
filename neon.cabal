@@ -28,7 +28,9 @@ library
       Neon.Driver
       Neon.Lexer
       Neon.LIR
+      Neon.Local
       Neon.MIR
+      Neon.MIRToLIR
       Neon.MIRToMC
       Neon.NeonToMIR
       Neon.Packager
@@ -40,6 +42,7 @@ library
       Neon.Span
       Neon.Syntax
       Neon.Typecheck
+      Neon.Util
   other-modules:
       Paths_neon
   hs-source-dirs:

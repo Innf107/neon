@@ -12,7 +12,7 @@ module Neon.MIR (
     Operand (..),
     Literal (..),
     PurePrimOp (..),
-    Shape (..),
+    Type (..),
     Local (..),
 
     PartialBlockData (..),
@@ -21,6 +21,9 @@ module Neon.MIR (
 
 import Neon.Prelude
 
+import Neon.Local
+
+import Neon.Util
 import Neon.Pretty
 
 import Neon.Syntax (Name, renderNameNoPrefix, renderName) -- Ugh
@@ -28,19 +31,23 @@ import Data.Unique
 import Data.IntMap qualified as IntMap
 import Neon.Config (Config(..), getConfig)
 
-{- | The Shape is effectively the 'type' of LIR expressions.
- This is not a traditional nominal type, but more about the, well, shape
- of data used for compilation. This will also be used for monomorphization,
- similar to go's 'GC shapes' once we have polymorphism.
--}
-data Shape = Number deriving (Show, Eq)
+class MakePretty a
 
-instance Pretty Shape where
-    pretty Number = "N"
+data Type = IntT 
+          | BoolT
+          | UnitT
+          | NeverT
+          deriving (Show, Eq)
 
--- Definitions store the shapes of parameters *and all locals*!
+instance Pretty Type where
+    pretty IntT = "int"
+    pretty BoolT = "bool"
+    pretty UnitT = "()"
+    pretty NeverT = "!"
+
+-- Definitions store the types of parameters *and all locals*!
 -- Because of this, we need to store the number of parameters separately
-data Def = DefFunction (PrettyAnn "fn $0($1) [$2*' '] -> $3:\n$4" Name) Int (Seq Shape) Shape Body
+data Def = DefFunction (PrettyAnn "fn $0($1) [$2*' '] -> $3:\n$4" Name) Int (Seq Type) Type Body
 
 instance Pretty [Def] where
     pretty defs = intercalate "\n\n" (map pretty defs)
@@ -60,11 +67,15 @@ newtype BasicBlock where
         blockIndex :: Int
     } -> PrettyAnn "_bb$0" BasicBlock 
     deriving (Eq)
+instance MakePretty BasicBlock
 
 data BasicBlockData = BasicBlockData {
     statements :: Seq Statement,
     terminator :: Terminator
 }
+instance Pretty BasicBlockData where
+    pretty BasicBlockData {statements, terminator} =
+        intercalate "\n" (toList $ fmap (("    "<>) . pretty) statements |> ("    " <> pretty terminator))
 
 data PartialBlockData = PartialBlockData {
     partialStatements :: Seq Statement
@@ -76,9 +87,6 @@ addStatements statements (blockData@PartialBlockData { partialStatements }) =
     blockData { partialStatements = partialStatements <> statements}
 
 
-instance Pretty BasicBlockData where
-    pretty BasicBlockData {statements, terminator} =
-        intercalate "\n" (toList $ fmap (("    "<>) . pretty) statements |> ("    " <> pretty terminator))
 
 data Terminator where
     -- | This block has a single successor. Execution directly continues there
@@ -112,23 +120,6 @@ data InlineAsmComponent where
     AsmOperand :: Operand -> PrettyAnn "$$0$" InlineAsmComponent
     
 
-data Local = Local {
-    localIx :: Int
-    -- localName is 'Just somename' iff this local was derived from a user-written variable.
-    -- IMPORTANT: localName exists exclusively for debug information. Two locals with the same
-    -- ix but different names will always behave the same way (except when displayed).
-,   localName :: Maybe Name
-}
-instance Eq Local where (==) = (==) `on` localIx
-instance Ord Local where compare = compare `on` localIx
-instance Pretty Local where
-    pretty (Local ix Nothing) = "_" <> show ix
-    pretty (Local ix (Just name)) =
-        let Config { printLocalPrefix } = getConfig () in
-        if printLocalPrefix then
-            renderName name <> "_" <> show ix
-        else
-            renderNameNoPrefix name <> "_" <> show ix
 
 
 data Place where
@@ -156,7 +147,6 @@ data PurePrimOp where
     PrimLE :: PrettyAnn "<=" PurePrimOp
 
 makePretty ''Def
-makePretty ''BasicBlock
 makePretty ''Terminator
 makePretty ''Place
 makePretty ''RValue
@@ -167,3 +157,4 @@ makePretty ''Literal
 makePretty ''PurePrimOp
 
 
+forAllInstances ''MakePretty makePretty
